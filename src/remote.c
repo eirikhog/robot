@@ -35,6 +35,10 @@ enum Buttons {
 void init_buttons() {
     clear_bit(DDRB, 0);
     set_bit(PORTB, 0);
+
+    uint8_t portd_mask = (1 << PIND7) | (1 << PIND6) | (1 << PIND5);
+    DDRD &= ~portd_mask;
+    PORTD |= portd_mask;
 }
 
 uint8_t get_buttons() {
@@ -82,10 +86,16 @@ int main(void) {
         // TODO: Probably need to do some smoothing on the button input.
         
         if (pressed(BUTTON_UP, buttons, buttons_prev)) {
-            uart_send(RADIO_CMD_LIGHT_ON);
+            uart_send(RADIO_CMD_FORWARD);
         }
         if (pressed(BUTTON_DOWN, buttons, buttons_prev)) {
-            uart_send(RADIO_CMD_LIGHT_OFF);
+            uart_send(RADIO_CMD_STOP);
+        }
+        if (pressed(BUTTON_LEFT, buttons, buttons_prev)) {
+            uart_send(RADIO_CMD_TURN_LEFT);
+        }
+        if (pressed(BUTTON_RIGHT, buttons, buttons_prev)) {
+            uart_send(RADIO_CMD_TURN_RIGHT);
         }
 
         buttons_prev = buttons;
