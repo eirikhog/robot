@@ -89,7 +89,7 @@ int main(void) {
             uart_send(RADIO_CMD_FORWARD);
         }
         if (pressed(BUTTON_DOWN, buttons, buttons_prev)) {
-            uart_send(RADIO_CMD_STOP);
+            uart_send(RADIO_CMD_BACKWARD);
         }
         if (pressed(BUTTON_LEFT, buttons, buttons_prev)) {
             uart_send(RADIO_CMD_TURN_LEFT);

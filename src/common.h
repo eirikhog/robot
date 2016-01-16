@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 typedef uint8_t byte;
+typedef uint8_t bool;
 
 #define set_bit(reg, n) ((reg) |= (1 << (n)))
 #define clear_bit(reg, n) ((reg) &= ~(1 << (n)))
@@ -56,6 +57,10 @@ void uart_send_string(char *str, int length) {
 byte uart_recv() {
 	while (!(UCSR0A & (1<<RXC0)));
 	return UDR0;
+}
+
+bool uart_waiting() {
+    return (UCSR0A & (1 << RXC0)) != 0;
 }
 
 #endif

@@ -1,10 +1,15 @@
 #define F_CPU 8000000
 
 #include <avr/io.h>
+#include <avr/interrupt.h>
 #include <util/delay.h>
 
 #include "common.h"
 
+typedef struct {
+    uint32_t counter;
+    bool working;
+} Range;
 
 typedef enum {
     MOTOR_LEFT,
@@ -23,6 +28,47 @@ typedef enum {
     STATE_TURN_LEFT,
     STATE_TURN_RIGHT
 } RobotState;
+
+typedef struct {
+    bool hasCommand;
+    RadioCommand cmd;
+} RadioState;
+
+static Range range_state;
+static RadioState radio_state;
+
+void toggle_led(void);
+
+ISR(USART_RX_vect) {
+    radio_state.cmd = UDR0;
+    radio_state.hasCommand = 1;
+}
+
+ISR(PCINT1_vect) {
+    //toggle_led();
+    bool rangeOn = PINC & (1 << PINC2);
+    if (rangeOn && !range_state.working) {
+       // Start timer...
+       range_state.counter = 0;
+       TCNT2 = 0;
+       TCCR2A = 0;
+       TCCR2B = (1 << CS20);
+       TIMSK2 = (1 << TOIE2);
+       range_state.working = 1;
+    } // Else: Ignore this interrupt
+
+    if (!rangeOn && range_state.working) {
+        // Stop timer...
+        range_state.counter += TCNT2;
+        TCCR2B = 0;
+        range_state.working = 0;
+    }
+}
+
+ISR(TIMER2_OVF_vect) {
+    range_state.counter += 255;
+    //toggle_led(); 
+}
 
 void init_motor() {
     // Phase correct PWM OC0A/B
@@ -49,9 +95,7 @@ void stop_motors() {
     _delay_ms(500);
 }
 
-void start_motor_8(Direction d) {
-    const uint8_t speed = 0xFF;
-    
+void start_motor_8(Direction d, uint8_t speed) {
     switch (d) {
         case FORWARD:{
             OCR0A = speed;
@@ -64,9 +108,7 @@ void start_motor_8(Direction d) {
     }
 }
 
-void start_motor_16(Direction d) {
-    const uint16_t speed = 0xFF;
-
+void start_motor_16(Direction d, uint16_t speed) {
     switch (d) {
         case FORWARD:{
             OCR1A = 0;
@@ -80,29 +122,105 @@ void start_motor_16(Direction d) {
 
 }
 
+void init_range() {
+    set_bit(DDRC, 1);
+    clear_bit(PORTC, 1);
+
+    clear_bit(DDRC, 2);
+    clear_bit(PORTC, 2);
+
+    range_state.counter = 0;
+    range_state.working = 0;
+
+    // Enable interrupts
+    PCMSK1 |= (1<<PCINT10);
+    EICRA |= (1<<ISC11) | (1<<ISC10);
+    EIMSK |= (1<<INT1);
+    PCICR |= (1<<PCIE1);
+}
+
+void range_check() {
+    set_bit(PORTC, 1);
+    _delay_us(14);
+    clear_bit(PORTC, 1);
+}
+
+void toggle_led() {
+    if (PORTC & 1) {
+        clear_bit(PORTC, 0);
+    } else {
+        set_bit(PORTC, 0);
+    }
+}
+
 int main(void) {
 
-	// Initialize LED
-	set_bit(DDRC, 0);
-    set_bit(PORTC, 0);
+    // Initialize LED
+    set_bit(DDRC, 0);
+    clear_bit(PORTC, 0);
 
     init_uart(9600, F_CPU);
     init_motor();
+    init_range();
+
+    UCSR0B |= (1 << RXCIE0);
+
+    radio_state.hasCommand = 0;
+
+    sei();
 
     RobotState state;
     state = STATE_STOPPED;
-	
+
+    #define STOP_SAMPLES 8 
+    const uint8_t stopThreshold = STOP_SAMPLES / 3;
+    bool stopSamples[STOP_SAMPLES];
+    uint8_t stopCounter = 0;
+
     while (1) {
-	    RadioCommand cmd = (RadioCommand)uart_recv();
-		switch (cmd) {
-			case RADIO_CMD_LIGHT_ON:{
-				set_bit(PORTC, 0);
-				uart_send(RADIO_ACK);
-			} break;
-			case RADIO_CMD_LIGHT_OFF:{
-				clear_bit(PORTC, 0);
+        range_check();
+        uint8_t waitTime = 0;
+        uint8_t maxWait = 200;
+        while (range_state.working && waitTime < maxWait) {
+            _delay_ms(10);
+            waitTime += 10;
+        }
+        if (range_state.counter < 0x1FFF && waitTime < maxWait) {
+            stopSamples[stopCounter % STOP_SAMPLES] = 1;
+            //
+        } else {
+            stopSamples[stopCounter % STOP_SAMPLES] = 0;
+        }
+
+        int8_t stops = 0;
+        stopCounter++;
+        for (int i = 0; i < STOP_SAMPLES; ++i) {
+            if (stopSamples[i])
+                stops++;
+        }
+
+        if (stops >= stopThreshold) {
+            if (state != STATE_STOPPED && state != STATE_BACKWARD) {
+                stop_motors();
+                state = STATE_STOPPED;
+            }
+            clear_bit(PORTC, 0);
+        } else {
+            set_bit(PORTC, 0);
+        }
+        
+        if (radio_state.hasCommand) {
+            RadioCommand cmd = radio_state.cmd;
+        //RadioCommand cmd = (RadioCommand)uart_recv();
+        switch (cmd) {
+            case RADIO_CMD_LIGHT_ON:{
+                set_bit(PORTC, 0);
                 uart_send(RADIO_ACK);
-			} break;
+            } break;
+            case RADIO_CMD_LIGHT_OFF:{
+                clear_bit(PORTC, 0);
+                uart_send(RADIO_ACK);
+            } break;
             case RADIO_CMD_STOP:{
                 stop_motors();
                 state = STATE_STOPPED;
@@ -112,17 +230,19 @@ int main(void) {
                 if (state != STATE_STOPPED) {
                     stop_motors();
                 }
-                start_motor_8(FORWARD);
-                start_motor_16(FORWARD);
+                start_motor_8(FORWARD, 0xFF);
+                start_motor_16(FORWARD, 0xFF);
                 state = STATE_FORWARD;
                 uart_send(RADIO_ACK);
             } break;
             case RADIO_CMD_BACKWARD:{
                 if (state != STATE_STOPPED) {
                     stop_motors();
+            state = STATE_STOPPED;
+                    break;
                 }
-                start_motor_8(BACKWARD);
-                start_motor_16(BACKWARD);
+                start_motor_8(BACKWARD, 0xFF);
+                start_motor_16(BACKWARD, 0xFF);
                 state = STATE_BACKWARD;
                 uart_send(RADIO_ACK);
             } break;
@@ -130,8 +250,8 @@ int main(void) {
                 if (state != STATE_STOPPED) {
                     stop_motors();
                 }
-                start_motor_8(FORWARD);
-                start_motor_16(BACKWARD);
+                start_motor_8(FORWARD, 0xFF);
+                start_motor_16(BACKWARD, 0xFF);
                 state = STATE_TURN_LEFT;
                 uart_send(RADIO_ACK);
             } break;
@@ -139,15 +259,17 @@ int main(void) {
                 if (state != STATE_STOPPED) {
                     stop_motors();
                 }
-                start_motor_8(BACKWARD);
-                start_motor_16(FORWARD);
+                start_motor_8(BACKWARD, 0xFF);
+                start_motor_16(FORWARD, 0xFF);
                 state = STATE_TURN_RIGHT;
                 uart_send(RADIO_ACK);
             } break;
             default:{
                 uart_send(RADIO_NACK);
             }
-		}
+        }
+            radio_state.hasCommand = 0;
+        }
     }
 }
 
