@@ -13,13 +13,13 @@ echo Building robot...
 avr-gcc ..\src\robot.c -c %cflags% -o robot.o 
 avr-gcc -g -mmcu=%mmcu% -o robot.elf robot.o
 avr-objdump -h -S robot.elf > robot.lst
-avr-size robot.elf
+avr-size --mcu=%mmcu% -C robot.elf
 
 echo.
 echo Building remote...
 avr-gcc %cflags% -o remote.o ..\src\remote.c
 avr-gcc -g -mmcu=%mmcu% -o remote.elf remote.o
 avr-objdump -h -S remote.elf > remote.lst
-avr-size remote.elf
+avr-size --mcu=%mmcu% -C remote.elf
 
 popd
