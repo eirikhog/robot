@@ -5,6 +5,7 @@
 #include <util/delay.h>
 
 #include "common.h"
+#include "remote_lcd.h"
 
 /**
  * Remote controller code.
@@ -23,6 +24,11 @@
  * PC1: Joystick (analog)
  * PC2: Joystick (button)
  * PB5-3: SPI (ISP connection, Display)
+ * LCD:
+ * PB1: SCE (Chip select)
+ * PB2: RST (Reset)
+ * PB7: D/C (Mode select)
+ * PB5-3: SPI
  */
 
 enum Buttons {
@@ -70,8 +76,12 @@ uint8_t pressed(uint8_t button, uint8_t buttons_state, uint8_t buttons_prev_stat
 
 int main(void) {
     init_uart(9600, F_CPU);
+    lcd_init();
     
     init_buttons();
+    // Init leds
+    DDRB |= (1 << PINB6);
+    clear_bit(PORTB, PINB6);
     
     // No interrupts for now.
     // set_bit(PCICR, PCIE0);

@@ -1,6 +1,9 @@
 #ifndef _REMOTE_LCD_H
 #define _REMOTE_LCD_H
 
+#include <avr/io.h>
+#include <util/delay.h>
+
 #define LCD_WIDTH 84
 #define LCD_HEIGHT 48
 
@@ -8,8 +11,6 @@
 #define LCD_DATA 1
 
 static const byte ASCII[][5] = {
-    // First 32 characters (0x00-0x19) are ignored. These are
-    // non-displayable, control characters.
     {0x00, 0x00, 0x00, 0x00, 0x00} // 0x20  
     ,{0x00, 0x00, 0x5f, 0x00, 0x00} // 0x21 !
     ,{0x00, 0x07, 0x00, 0x07, 0x00} // 0x22 "
@@ -70,7 +71,7 @@ static const byte ASCII[][5] = {
     ,{0x07, 0x08, 0x70, 0x08, 0x07} // 0x59 Y
     ,{0x61, 0x51, 0x49, 0x45, 0x43} // 0x5a Z
     ,{0x00, 0x7f, 0x41, 0x41, 0x00} // 0x5b [
-    ,{0x02, 0x04, 0x08, 0x10, 0x20} // 0x5c \
+    ,{0x02, 0x04, 0x08, 0x10, 0x20} // 0x5c '\' 
     ,{0x00, 0x41, 0x41, 0x7f, 0x00} // 0x5d ]
     ,{0x04, 0x02, 0x01, 0x02, 0x04} // 0x5e ^
     ,{0x40, 0x40, 0x40, 0x40, 0x40} // 0x5f _
@@ -108,8 +109,138 @@ static const byte ASCII[][5] = {
     ,{0x78, 0x46, 0x41, 0x46, 0x78} // 0x7f DEL
 };
 
+#define LCD_PIN_RESET PINB2
+#define LCD_PIN_SCE PINB1
+#define LCD_PIN_MODE PINB7
 
-lcd_init() {
+static byte Display[LCD_WIDTH * LCD_HEIGHT / 8];
+
+//TODO: Move SPI code to common file
+void spi_init() {
+    // Set MISO and SCK pin as output (and disable spi input)
+    DDRB |= (1 << PINB4) | (1 << PINB5) | (1 << PINB3) | (1 << PINB2);
+    // TODO: Check timing!
+    SPCR = (1 << SPE) | (0 << DORD) | (1 << MSTR) | (0 << SPR1) | (1 << SPR0);
+}
+
+void spi_send(byte data) {
+    SPDR = data;
+    // Wait for transmission
+    while (!(SPSR & (1 << SPIF)));
+}
+
+void lcd_reset() {
+    clear_bit(PORTB, LCD_PIN_RESET);
+    _delay_ms(5);
+    set_bit(PORTB, LCD_PIN_RESET);
+}
+
+typedef enum {
+    LCD_TYPE_COMMAND = 0,
+    LCD_TYPE_DATA = 1
+} LcdTransferType;
+
+void lcd_write(LcdTransferType type, byte data) {
+    if (type == LCD_TYPE_COMMAND) {
+        clear_bit(PORTB, LCD_PIN_MODE);
+    } else {
+        set_bit(PORTB, LCD_PIN_MODE);
+    }
+    clear_bit(PORTB, LCD_PIN_SCE);
+    spi_send(data);
+    set_bit(PORTB, LCD_PIN_SCE);
+}
+
+void lcd_contrast(byte contrast) {
+    lcd_write(LCD_TYPE_COMMAND, 0x21);
+    lcd_write(LCD_TYPE_COMMAND, 0x80 | contrast);
+    lcd_write(LCD_TYPE_COMMAND, 0x20);
+}
+
+void lcd_set_pixel(int x, int y) {
+	if (x >= LCD_WIDTH || y >= LCD_HEIGHT) {
+		return; // Drawing outside screen
+	}
+
+    byte shift = y % 8;
+    Display[LCD_WIDTH*(y/8) + x] |= 1 << shift;
+}
+
+void lcd_clear_pixel(int x, int y) {
+	if (x >= LCD_WIDTH || y >= LCD_HEIGHT) {
+		return; // Drawing outside screen
+	}
+
+	byte shift = y % 8;
+	Display[LCD_WIDTH*(y/8) + x] &= ~(1 << shift);
+}
+
+void lcd_update() {
+    for (int i = 0; i < LCD_WIDTH * LCD_HEIGHT / 8; ++i) {
+        lcd_write(LCD_TYPE_DATA, Display[i]);
+    }
+}
+
+void lcd_goto(uint8_t x, uint8_t y) {
+    lcd_write(LCD_TYPE_COMMAND, 0x80 | x);
+    lcd_write(LCD_TYPE_COMMAND, 0x40 | y);
+}
+
+void lcd_clear() {
+    // Avoid using libc memset
+    for (int i = 0; i < LCD_HEIGHT * LCD_WIDTH / 8; ++i) {
+        Display[i] = 0;
+    }
+    
+    lcd_update();
+}
+
+void lcd_invert() {
+  lcd_write(LCD_TYPE_COMMAND, 0x20); //Tell LCD that extended commands follow
+  lcd_write(LCD_TYPE_COMMAND, 0x08 | 0x05); //Set LCD Vop (Contrast): Try 0xB1(good @ 3.3V) or 0xBF if your display is too dark
+  lcd_write(LCD_TYPE_COMMAND, 0x20); //Set display mode  */
+}
+
+void lcd_print_char(char character, int x, int y) {
+	
+	for (int i = 0; i < 5; ++i) {
+		byte col = ASCII[character - 0x20][i];
+		for (int j = 0; j < 8; ++j) {
+			if (col & (1 << j)) {
+				lcd_set_pixel(x + i, y + j);
+			} else {
+				lcd_clear_pixel(x + i, y + j);
+			}
+		}
+	}
+}
+
+void lcd_print(char *str, int x, int y) {
+	char *ptr = str;
+	uint8_t offset = 0;
+	while (*ptr) {
+		lcd_print_char(*ptr, x + offset, y);
+		offset += 6;
+		ptr++;
+	}
+}
+
+void lcd_init() {
+    spi_init();
+    DDRB |= (1 << LCD_PIN_MODE) | (1 << LCD_PIN_RESET) | (1 << LCD_PIN_SCE);
+    lcd_reset();
+
+    lcd_write(LCD_TYPE_COMMAND, 0x21); // Select extended command
+    lcd_write(LCD_TYPE_COMMAND, 0xB0); // Set contrast
+    lcd_write(LCD_TYPE_COMMAND, 0x04); // Set temp coefficient
+    lcd_write(LCD_TYPE_COMMAND, 0x14); // LCD bias mode 1:48
+    lcd_write(LCD_TYPE_COMMAND, 0x20); // Display control mode
+    lcd_write(LCD_TYPE_COMMAND, 0x0C); // Set display control, normal mode.
+	lcd_contrast(0x40);
+
+	lcd_print("Hello world!", 0, 0);
+
+    lcd_update();
 }
 
 #endif
