@@ -3,6 +3,7 @@
 
 #include <avr/io.h>
 #include <util/delay.h>
+#include <avr/interrupt.h>
 
 #include "common.h"
 #include "remote_lcd.h"
@@ -75,15 +76,65 @@ uint8_t pressed(uint8_t button, uint8_t buttons_state, uint8_t buttons_prev_stat
     return 0;
 }
 
+typedef struct {
+    uint16_t x;
+    uint16_t y;
+    bool sw;
+} JoyPosition;
+
+static JoyPosition joystick;
+
+ISR(ADC_vect) {
+    if (ADMUX & (1 << MUX0)) { // ADC Channel 1
+        ADMUX &= ~(1 << MUX0);
+        joystick.x = ADC;
+    } else { // ADC Channel 0
+        ADMUX |= (1 << MUX0);
+        joystick.y = ADC;
+    }
+}
+
+void adc_init() {
+    // PC0: Joystick (analog)
+    // PC1: Joystick (analog)
+    // PC2: Joystick (button)
+    DDRC &= ~((1 << PINC2) | (1 << PINC1) | (1 << PINC0));
+    PORTC &= ~((1 << PINC2) | (1 << PINC1) | (1 << PINC0));
+    
+    ADMUX = (0 << ADLAR) | (1 << REFS0) | (1 << MUX0);
+    ADCSRA = (1 << ADATE) | (1 << ADIE) | (1 << ADPS2) | (1 << ADPS1);
+    ADCSRB = 0;
+
+    ADCSRA |= (1 << ADEN);
+    ADCSRA |= (1 << ADSC);
+}
+
+void joystick_init(void) {
+    DDRC |= (1 << PINC2);
+    PORTC |= (1 << PINC2);
+}
+
+void joystick_update(void) {
+    if (PINC & (1 << PINC2)) {
+        joystick.sw = 0;
+    } else {
+        joystick.sw = 1;
+    }
+}
+
 int main(void) {
     init_uart(9600, F_CPU);
-    lcd_init();
-    
-    terminal_init();
     init_buttons();
+    lcd_init();
+    terminal_init();
+    adc_init();
+    joystick_init();
+    
     // Init leds
     DDRB |= (1 << PINB6);
     clear_bit(PORTB, PINB6);
+
+    sei();
     
     // No interrupts for now.
     // set_bit(PCICR, PCIE0);
@@ -95,6 +146,16 @@ int main(void) {
     while (1) 
     {
         buttons = get_buttons();
+        joystick_update();
+
+        if (joystick.sw) {
+            printf("Joystick pressed!");
+        }
+
+        // printf("Getting ADC...\n");
+        char buffer[32];
+        sprintf(buffer, "%u,%u\n", joystick.x, joystick.y);
+        printf(buffer);
         
         if (pressed(BUTTON_UP, buttons, buttons_prev)) {
             printf("BUTTON_UP\n");
@@ -114,7 +175,6 @@ int main(void) {
         }
 
         buttons_prev = buttons;
-        _delay_ms(20);
     }
 }
 
