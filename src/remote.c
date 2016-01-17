@@ -6,6 +6,7 @@
 
 #include "common.h"
 #include "remote_lcd.h"
+#include "remote_terminal.h"
 
 /**
  * Remote controller code.
@@ -78,6 +79,7 @@ int main(void) {
     init_uart(9600, F_CPU);
     lcd_init();
     
+    terminal_init();
     init_buttons();
     // Init leds
     DDRB |= (1 << PINB6);
@@ -87,29 +89,32 @@ int main(void) {
     // set_bit(PCICR, PCIE0);
     // set_bit(PCMSK0, PCINT0);
 
-    uint8_t buttons = 0;
-    uint8_t buttons_prev = 0;
+    uint8_t buttons = 0xFF;
+    uint8_t buttons_prev = 0xFF;
 
     while (1) 
     {
         buttons = get_buttons();
-        // TODO: Probably need to do some smoothing on the button input.
         
         if (pressed(BUTTON_UP, buttons, buttons_prev)) {
+            printf("BUTTON_UP\n");
             uart_send(RADIO_CMD_FORWARD);
         }
         if (pressed(BUTTON_DOWN, buttons, buttons_prev)) {
+            printf("BUTTON_DOWN\n");
             uart_send(RADIO_CMD_BACKWARD);
         }
         if (pressed(BUTTON_LEFT, buttons, buttons_prev)) {
+            printf("BUTTON_LEFT\n");
             uart_send(RADIO_CMD_TURN_LEFT);
         }
         if (pressed(BUTTON_RIGHT, buttons, buttons_prev)) {
+            printf("BUTTON_RIGHT\n");
             uart_send(RADIO_CMD_TURN_RIGHT);
         }
 
         buttons_prev = buttons;
-        _delay_ms(100);
+        _delay_ms(20);
     }
 }
 

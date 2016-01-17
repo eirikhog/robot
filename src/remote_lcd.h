@@ -7,8 +7,21 @@
 #define LCD_WIDTH 84
 #define LCD_HEIGHT 48
 
-#define LCD_COMMAND 0
-#define LCD_DATA 1
+#define LCD_PIN_RESET PINB2
+#define LCD_PIN_SCE PINB1
+#define LCD_PIN_MODE PINB7
+
+typedef enum {
+    LCD_TYPE_COMMAND = 0,
+    LCD_TYPE_DATA = 1
+} LcdTransferType;
+
+void lcd_reset();
+void lcd_init();
+void lcd_contrast(uint8_t);
+void lcd_update();
+void lcd_print_char(char character, int x, int y);
+void lcd_print(char *str, int x, int y);
 
 static const byte ASCII[][5] = {
     {0x00, 0x00, 0x00, 0x00, 0x00} // 0x20  
@@ -109,11 +122,9 @@ static const byte ASCII[][5] = {
     ,{0x78, 0x46, 0x41, 0x46, 0x78} // 0x7f DEL
 };
 
-#define LCD_PIN_RESET PINB2
-#define LCD_PIN_SCE PINB1
-#define LCD_PIN_MODE PINB7
-
 static byte Display[LCD_WIDTH * LCD_HEIGHT / 8];
+
+//TODO: Consider moving implementation to c file!
 
 //TODO: Move SPI code to common file
 void spi_init() {
@@ -135,12 +146,8 @@ void lcd_reset() {
     set_bit(PORTB, LCD_PIN_RESET);
 }
 
-typedef enum {
-    LCD_TYPE_COMMAND = 0,
-    LCD_TYPE_DATA = 1
-} LcdTransferType;
-
-void lcd_write(LcdTransferType type, byte data) {
+static void
+lcd_write(LcdTransferType type, byte data) {
     if (type == LCD_TYPE_COMMAND) {
         clear_bit(PORTB, LCD_PIN_MODE);
     } else {
@@ -149,12 +156,6 @@ void lcd_write(LcdTransferType type, byte data) {
     clear_bit(PORTB, LCD_PIN_SCE);
     spi_send(data);
     set_bit(PORTB, LCD_PIN_SCE);
-}
-
-void lcd_contrast(byte contrast) {
-    lcd_write(LCD_TYPE_COMMAND, 0x21);
-    lcd_write(LCD_TYPE_COMMAND, 0x80 | contrast);
-    lcd_write(LCD_TYPE_COMMAND, 0x20);
 }
 
 void lcd_set_pixel(int x, int y) {
@@ -175,19 +176,25 @@ void lcd_clear_pixel(int x, int y) {
 	Display[LCD_WIDTH*(y/8) + x] &= ~(1 << shift);
 }
 
+void lcd_contrast(byte contrast) {
+    lcd_write(LCD_TYPE_COMMAND, 0x21);
+    lcd_write(LCD_TYPE_COMMAND, 0x80 | contrast);
+    lcd_write(LCD_TYPE_COMMAND, 0x20);
+}
+
 void lcd_update() {
     for (int i = 0; i < LCD_WIDTH * LCD_HEIGHT / 8; ++i) {
         lcd_write(LCD_TYPE_DATA, Display[i]);
     }
 }
 
-void lcd_goto(uint8_t x, uint8_t y) {
+void
+lcd_set_position(uint8_t x, uint8_t y) {
     lcd_write(LCD_TYPE_COMMAND, 0x80 | x);
     lcd_write(LCD_TYPE_COMMAND, 0x40 | y);
 }
 
 void lcd_clear() {
-    // Avoid using libc memset
     for (int i = 0; i < LCD_HEIGHT * LCD_WIDTH / 8; ++i) {
         Display[i] = 0;
     }
@@ -196,9 +203,9 @@ void lcd_clear() {
 }
 
 void lcd_invert() {
-  lcd_write(LCD_TYPE_COMMAND, 0x20); //Tell LCD that extended commands follow
-  lcd_write(LCD_TYPE_COMMAND, 0x08 | 0x05); //Set LCD Vop (Contrast): Try 0xB1(good @ 3.3V) or 0xBF if your display is too dark
-  lcd_write(LCD_TYPE_COMMAND, 0x20); //Set display mode  */
+  lcd_write(LCD_TYPE_COMMAND, 0x20);
+  lcd_write(LCD_TYPE_COMMAND, 0x08 | 0x05);
+  lcd_write(LCD_TYPE_COMMAND, 0x20);
 }
 
 void lcd_print_char(char character, int x, int y) {
