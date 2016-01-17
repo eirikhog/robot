@@ -28,13 +28,13 @@ void terminal_write_char(char c);
 void terminal_push_to_lcd(void);
 
 void terminal_init() {
-
     term_state.size = TERMINAL_BUFFER_SIZE;
     term_state.pos = terminal_buffer;
     term_state.end = terminal_buffer + TERMINAL_BUFFER_SIZE;
 
     terminal_clear();
 
+    // Hook up printf functionality
     fdevopen(terminal_printf, NULL);
 }
 
@@ -100,10 +100,10 @@ void terminal_write(char *string) {
 void terminal_push_to_lcd() {
     // TODO: We dont always have to redraw everything.
     //lcd_clear();
-    lcd_set_position(0, 0);
+    lcd_setpos(0, 0);
     for (int y = 0; y < TERMINAL_LINE_HEIGHT; ++y) {
         for (int x = 0; x < TERMINAL_LINE_LENGTH; ++x) {
-            lcd_print_char(terminal_buffer[y * TERMINAL_LINE_LENGTH + x], x * 6, y * 8);
+            lcd_putchar(terminal_buffer[y * TERMINAL_LINE_LENGTH + x], x * 6, y * 8);
         }
     }
 

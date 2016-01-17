@@ -9,6 +9,10 @@
 #include "remote_lcd.h"
 #include "remote_terminal.h"
 
+// Unity build
+// TODO: Consider if we want to keep this...
+#include "remote_lcd.c"
+
 /**
  * Remote controller code.
  *
