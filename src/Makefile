@@ -2,7 +2,7 @@
 
 CC=avr-gcc
 MCU=atmega328p
-CFLAGS=-c -g -Os -mmcu=$(MCU) -std=c99 -Wall -Werror
+CFLAGS=-c -g -Os -mmcu=$(MCU) -std=gnu99 -Wall -Werror
 OBJDUMP=avr-objdump
 AVRSIZE=avr-size
 

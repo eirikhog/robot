@@ -2,7 +2,7 @@
 
 set cc=avr-gcc
 set mmcu=atmega328p
-set cflags=-c -g -Os -mmcu=%mmcu% -std=c99 -Wall -Werror
+set cflags=-c -g -Os -mmcu=%mmcu% -std=gnu99 -Wall -Werror
 set outputDir=..\build\
 
 if not exist ..\build mkdir ..\build

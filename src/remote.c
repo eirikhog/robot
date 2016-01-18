@@ -17,6 +17,7 @@ static volatile InputState input_state;
 // TODO: Consider if we want to keep this...
 #include "remote_lcd.c"
 #include "remote_input.c"
+#include "remote_mode_manual.c"
 
 /**
  * Remote controller code.
@@ -41,14 +42,6 @@ static volatile InputState input_state;
  * PB7: D/C (Mode select)
  * PB5-3: SPI
  */
-
-
-typedef enum {
-    MODE_MANUAL,
-    MODE_MENU,
-    MODE_AUTO
-} RemoteMode;
-
 
 void UpdateRunMode() {
 
@@ -83,6 +76,12 @@ void UpdateRunMode() {
     buttons_prev = buttons;
 }
 
+typedef enum {
+    MODE_MANUAL,
+    MODE_AUTO,
+    MODE_MENU
+} RemoteMode;
+
 int main(void) {
     // UART for radio.
     init_uart(9600, F_CPU);
@@ -101,10 +100,23 @@ int main(void) {
     // Ready to go!
     sei();
 
+    RemoteMode mode = MODE_MANUAL;
+
     while (1) 
     {
         input_update(&input_state);
-        printf("X: %u Y: %u\n", input_state.joystick.x, input_state.joystick.y);
+
+        switch (mode) {
+            case MODE_MANUAL:
+                UpdateManualMode(&input_state);
+                break;
+            case MODE_AUTO:
+                asm("nop"::);
+                break;
+            case MODE_MENU:
+                asm("nop"::);
+                break;
+        }
     }
 }
 
