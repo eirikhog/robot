@@ -4,8 +4,11 @@ CC=avr-gcc
 MCU=atmega328p
 CFLAGS=-c -g -Os -mmcu=$(MCU) -std=c99 -Wall -Werror
 OBJDUMP=avr-objdump
+AVRSIZE=avr-size
 
 all: robot remote
+	$(AVRSIZE) --mcu=$(MCU) -C robot.elf
+	$(AVRSIZE) --mcu=$(MCU) -C remote.elf
 
 robot:
 	$(CC) robot.c -c $(CFLAGS) -o robot.o
