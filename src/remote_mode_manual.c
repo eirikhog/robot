@@ -67,7 +67,7 @@ void UpdateManualMode(volatile InputState *input) {
         motor_right = -0xFF;
     }
 
-    // TODO: Send motor command to robot.
+
 
     // Debug output:
     printf("D: %d %d\n", motor_left, motor_right);

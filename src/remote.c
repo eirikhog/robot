@@ -43,39 +43,6 @@ static volatile InputState input_state;
  * PB5-3: SPI
  */
 
-void UpdateRunMode() {
-
-    static uint8_t buttons_prev = 0xFF;
-    uint8_t buttons = input_state.buttons;
-
-    if (input_state.joystick.sw) {
-        printf("Joystick pressed!\n");
-    }
-
-    //char buffer[32];
-    //sprintf(buffer, "%u,%u\n", joystick.x, joystick.y);
-    //printf(buffer);
-
-    if (button_pressed(BUTTON_UP, buttons, buttons_prev)) {
-        printf("BUTTON_UP\n");
-        uart_send(RADIO_CMD_FORWARD);
-    }
-    if (button_pressed(BUTTON_DOWN, buttons, buttons_prev)) {
-        printf("BUTTON_DOWN\n");
-        uart_send(RADIO_CMD_BACKWARD);
-    }
-    if (button_pressed(BUTTON_LEFT, buttons, buttons_prev)) {
-        printf("BUTTON_LEFT\n");
-        uart_send(RADIO_CMD_TURN_LEFT);
-    }
-    if (button_pressed(BUTTON_RIGHT, buttons, buttons_prev)) {
-        printf("BUTTON_RIGHT\n");
-        uart_send(RADIO_CMD_TURN_RIGHT);
-    }
-
-    buttons_prev = buttons;
-}
-
 typedef enum {
     MODE_MANUAL,
     MODE_AUTO,

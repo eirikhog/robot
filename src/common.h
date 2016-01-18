@@ -18,10 +18,10 @@ typedef enum {
 	RADIO_CMD_LIGHT_ON = 0x40,
 	RADIO_CMD_LIGHT_OFF = 0x41,
     RADIO_CMD_STOP = 0x80,
-    RADIO_CMD_FORWARD,
-    RADIO_CMD_BACKWARD,
-    RADIO_CMD_TURN_LEFT,
-    RADIO_CMD_TURN_RIGHT
+    RADIO_CMD_MOTOR_LEFT_FORWARD,
+    RADIO_CMD_MOTOR_LEFT_BACKWARD,
+    RADIO_CMD_MOTOR_RIGHT_FORWARD,
+    RADIO_CMD_MOTOR_RIGHT_BACKWARD
 } RadioCommand;
 
 typedef enum {
@@ -29,6 +29,10 @@ typedef enum {
     RADIO_ACK = 1
 } RadioProtocol;
 
+typedef struct {
+    RadioCommand cmd;
+    uint8_t data;
+} RemoteCommand;
 
 void init_uart(uint16_t baud, uint32_t freq) {
 
@@ -65,6 +69,23 @@ byte uart_recv() {
 
 bool uart_waiting() {
     return (UCSR0A & (1 << RXC0)) != 0;
+}
+
+void radio_send(RadioCommand cmd, uint8_t data) {
+    // Send command
+    uart_send(cmd);
+    uart_send(data);
+
+    // TODO: Check for ACK
+}
+
+RadioCommand radio_get(uint8_t *data) {
+    uint8_t cmd = (RadioCommand)uart_recv();
+    *data = (uint8_t)uart_recv();
+
+    // TODO: Send ACK
+
+    return cmd;
 }
 
 #endif
