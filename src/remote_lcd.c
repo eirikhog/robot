@@ -116,8 +116,6 @@ static const byte ASCII[][5] = {
 
 static byte Display[LCD_WIDTH * LCD_HEIGHT / 8];
 
-//TODO: Consider moving implementation to c file!
-
 //TODO: Move SPI code to common file
 void spi_init() {
     // Set MISO and SCK pin as output (and disable spi input)
