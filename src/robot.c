@@ -34,14 +34,68 @@ static Range range_state;
 
 void toggle_led(void);
 
-static uint8_t recv_buffer[2];
-static uint8_t recv_buffer_count;
+// TODO: Move to buffer, or better struct.
+static volatile bool HasCommand;
+static volatile RadioCommand Command;
+static volatile uint8_t CommandData;
+
+#define UART_BUFFER_COUNT 64
+static uint8_t UartRecvBuffer[UART_BUFFER_COUNT];
+
+typedef struct {
+    uint8_t *data;
+    uint16_t start;
+    uint16_t end;
+    uint16_t capacity;
+} CircleBuffer;
+
+static volatile CircleBuffer UartBuffer;
+
+inline bool buffer_empty(volatile CircleBuffer *buffer) {
+    return (buffer->start == buffer->end);
+}
+
+inline bool buffer_full(volatile CircleBuffer *buffer) {
+    if (buffer->start - buffer->end == 1) {
+        return 1;
+    }
+
+    if (buffer->end == buffer->capacity - 1 && buffer->start == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+inline uint8_t buffer_read(volatile CircleBuffer *buffer) {
+    // TODO: Atomic
+    uint8_t data = *(buffer->data + buffer->start);
+    uint16_t newStart = buffer->start + 1;
+    if (newStart == buffer->capacity) {
+        buffer->start = 0;
+    } else {
+        buffer->start = newStart;
+    }
+
+    return data;
+}
+
+// TODO: Make safe for concurrent usage.
+// Currently fine, only used from ISR
+inline void buffer_write(volatile CircleBuffer *buffer, uint8_t data) {
+    if (!buffer_full(buffer)) {
+        uint16_t newEnd = buffer->end + 1;
+        if (newEnd == buffer->capacity) {
+            newEnd = 0;
+        }
+        *(buffer->data + newEnd) = data;
+        buffer->end = newEnd;
+    }
+}
 
 ISR(USART_RX_vect) {
-    if (recv_buffer_count < 2) {
-        recv_buffer[recv_buffer_count] = UDR0;
-        ++recv_buffer_count;
-    }
+    // TODO: Buffering
+    uint8_t packed = UDR0;
+    buffer_write(&UartBuffer, packed);
 }
 
 ISR(PCINT1_vect) {
@@ -157,27 +211,33 @@ int main(void) {
 
     // Initialize LED
     set_bit(DDRC, 0);
-    clear_bit(PORTC, 0);
+    set_bit(PORTC, 0);
 
     init_uart(9600, F_CPU);
+    UartBuffer.data = UartRecvBuffer;
+    UartBuffer.start = 0;
+    UartBuffer.end = 0;
+    UartBuffer.capacity = UART_BUFFER_COUNT;
     init_motor();
     init_range();
 
     UCSR0B |= (1 << RXCIE0);
 
-    recv_buffer_count = 0;
+    HasCommand = 0;
+    CommandData = 0;
 
     sei();
 
     RobotState state;
     state = STATE_STOPPED;
-
+#if 0
     #define STOP_SAMPLES 8 
     const uint8_t stopThreshold = STOP_SAMPLES / 3;
     bool stopSamples[STOP_SAMPLES];
     uint8_t stopCounter = 0;
-
+#endif
     while (1) {
+#if 0
         range_check();
         uint8_t waitTime = 0;
         uint8_t maxWait = 200;
@@ -208,23 +268,18 @@ int main(void) {
         } else {
             set_bit(PORTC, 0);
         }
+#endif
 
-        // Critical section
-        bool hasCommand;
-        RadioCommand cmd = 0;
-        uint8_t data = 0;
-        ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-        {
-            if (recv_buffer_count == 2) {
-                cmd = (RadioCommand)recv_buffer[0];
-                data = recv_buffer[1];
-                recv_buffer_count = 0;
-                hasCommand = 1;
-            }
+        if (!buffer_empty(&UartBuffer)) {
+            uint8_t packed = buffer_read(&UartBuffer);
+            Command = (RadioCommand)(packed >> 4);
+            CommandData = (packed & 0x0F);
+            HasCommand = 1;
         }
-        
-        if (hasCommand) {
-            switch (cmd) {
+
+        if (HasCommand) {
+            uint8_t data = CommandData << 4;
+            switch (Command) {
                 case RADIO_CMD_LIGHT_ON:{
                     set_bit(PORTC, 0);
                     uart_send(RADIO_ACK);
@@ -242,7 +297,7 @@ int main(void) {
                     motor_set_left(FORWARD, data);
                 } break;
                 case RADIO_CMD_MOTOR_LEFT_BACKWARD:{
-                    motor_set_right(BACKWARD, data);
+                    motor_set_left(BACKWARD, data);
                 } break;
                 case RADIO_CMD_MOTOR_RIGHT_FORWARD:{
                     motor_set_right(FORWARD, data);
@@ -254,6 +309,7 @@ int main(void) {
                     uart_send(RADIO_NACK);
                 }
             }
+            HasCommand = 0;
         }
     }
 }

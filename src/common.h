@@ -11,17 +11,18 @@ typedef uint8_t bool;
 #define bit_set(reg, n) ((reg) & (1 << (n)))
 
 // Note: Not safe in edge cases
-#define abs(x) ((x > 0) ? x : -x);
-#define max(x,y) ((x < y) ? y : x);
+// #define abs(x) ((x > 0) ? x : -x)
+#define max(x,y) ((x < y) ? y : x)
+
 
 typedef enum {
-	RADIO_CMD_LIGHT_ON = 0x40,
-	RADIO_CMD_LIGHT_OFF = 0x41,
-    RADIO_CMD_STOP = 0x80,
-    RADIO_CMD_MOTOR_LEFT_FORWARD,
-    RADIO_CMD_MOTOR_LEFT_BACKWARD,
-    RADIO_CMD_MOTOR_RIGHT_FORWARD,
-    RADIO_CMD_MOTOR_RIGHT_BACKWARD
+	RADIO_CMD_LIGHT_ON = 0x01,
+	RADIO_CMD_LIGHT_OFF = 0x02,
+    RADIO_CMD_STOP = 0x03,
+    RADIO_CMD_MOTOR_LEFT_FORWARD = 0x04,
+    RADIO_CMD_MOTOR_LEFT_BACKWARD = 0x05,
+    RADIO_CMD_MOTOR_RIGHT_FORWARD = 0x06,
+    RADIO_CMD_MOTOR_RIGHT_BACKWARD = 0x07
 } RadioCommand;
 
 typedef enum {
@@ -73,17 +74,16 @@ bool uart_waiting() {
 
 void radio_send(RadioCommand cmd, uint8_t data) {
     // Send command
-    uart_send(cmd);
-    uart_send(data);
+    uint8_t packed = (cmd << 4) | (0x0F & (data >> 4));
+    uart_send(packed);
 
     // TODO: Check for ACK
 }
 
 RadioCommand radio_get(uint8_t *data) {
-    uint8_t cmd = (RadioCommand)uart_recv();
-    *data = (uint8_t)uart_recv();
-
-    // TODO: Send ACK
+    uint8_t packed = uart_recv();
+    RadioCommand cmd = (RadioCommand)(packed >> 4);
+    *data = packed & 0x0F;
 
     return cmd;
 }

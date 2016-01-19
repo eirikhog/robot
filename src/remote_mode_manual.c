@@ -1,4 +1,5 @@
 
+#include <stdlib.h>
 
 void UpdateManualMode(volatile InputState *input) {
 
@@ -67,9 +68,30 @@ void UpdateManualMode(volatile InputState *input) {
         motor_right = -0xFF;
     }
 
+    if (motor_left == 0 && motor_right == 0) {
+        radio_send(RADIO_CMD_STOP, 0);
+        printf("R: STOP\n");
+    } else {
+        if (motor_left > 0) {
+            radio_send(RADIO_CMD_MOTOR_LEFT_FORWARD, (uint8_t)motor_left);
+            printf("L-F: %u\n", motor_left);
+        } else {
+            radio_send(RADIO_CMD_MOTOR_LEFT_BACKWARD, (uint8_t)abs(motor_left));
+            printf("L-B: %u\n", (uint8_t)abs(motor_left));
+        }
 
+
+        if (motor_right > 0) {
+            radio_send(RADIO_CMD_MOTOR_RIGHT_FORWARD, (uint8_t)motor_right);
+            printf("R-F: %u\n", motor_right);
+        } else {
+            radio_send(RADIO_CMD_MOTOR_RIGHT_BACKWARD, (uint8_t)abs(motor_right));
+            printf("R-B: %u\n", (uint8_t)abs(motor_right));
+        }
+    }
+    _delay_ms(60); // TODO: Make sure we dont need this.
 
     // Debug output:
-    printf("D: %d %d\n", motor_left, motor_right);
+    // printf("D: %d %d\n", motor_left, motor_right);
 
 }
