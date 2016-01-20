@@ -22,14 +22,6 @@ typedef enum {
     BACKWARD
 } Direction;
 
-typedef enum {
-    STATE_STOPPED,
-    STATE_FORWARD,
-    STATE_BACKWARD,
-    STATE_TURN_LEFT,
-    STATE_TURN_RIGHT
-} RobotState;
-
 static Range range_state;
 
 void toggle_led(void);
@@ -245,16 +237,11 @@ int main(void) {
 
     sei();
 
-    RobotState state;
-    state = STATE_STOPPED;
-#if 0
     #define STOP_SAMPLES 8 
-    const uint8_t stopThreshold = STOP_SAMPLES / 3;
+    const uint8_t stopThreshold = STOP_SAMPLES / 4;
     bool stopSamples[STOP_SAMPLES];
     uint8_t stopCounter = 0;
-#endif
     while (1) {
-#if 0
         range_check();
         uint8_t waitTime = 0;
         uint8_t maxWait = 200;
@@ -277,31 +264,22 @@ int main(void) {
         }
 
         if (stops >= stopThreshold) {
-            if (state != STATE_STOPPED && state != STATE_BACKWARD) {
-                stop_motors();
-                state = STATE_STOPPED;
-            }
             clear_bit(PORTC, 0);
         } else {
             set_bit(PORTC, 0);
         }
-#endif
 
         while (poll_buffer(&UartBuffer, &Command, &CommandData)) {
             uint8_t data = CommandData;
             switch (Command) {
                 case RADIO_CMD_LIGHT_ON:{
                     set_bit(PORTC, 0);
-                    uart_send(RADIO_ACK);
                 } break;
                 case RADIO_CMD_LIGHT_OFF:{
                     clear_bit(PORTC, 0);
-                    uart_send(RADIO_ACK);
                 } break;
                 case RADIO_CMD_STOP:{
                     stop_motors();
-                    state = STATE_STOPPED;
-                    uart_send(RADIO_ACK);
                 } break;
                 case RADIO_CMD_MOTOR_LEFT_FORWARD:{
                     motor_set_left(FORWARD, data);
@@ -316,7 +294,7 @@ int main(void) {
                     motor_set_right(BACKWARD, data);
                 } break;
                 default:{
-                    uart_send(RADIO_NACK);
+                    asm("nop"::);
                 }
             }
             HasCommand = 0;
