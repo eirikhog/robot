@@ -89,8 +89,7 @@ void UpdateManualMode(volatile InputState *input) {
             printf("R-B: %u\n", (uint8_t)abs(motor_right));
         }
     }
-    _delay_ms(60); // TODO: Make sure we dont need this.
-
+    //_delay_ms(60); // TODO: Make sure we dont need this.
     // Debug output:
     // printf("D: %d %d\n", motor_left, motor_right);
 

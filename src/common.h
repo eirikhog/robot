@@ -16,13 +16,15 @@ typedef uint8_t bool;
 
 
 typedef enum {
+    RADIO_CMD_RESERVED = 0x00,
 	RADIO_CMD_LIGHT_ON = 0x01,
 	RADIO_CMD_LIGHT_OFF = 0x02,
     RADIO_CMD_STOP = 0x03,
     RADIO_CMD_MOTOR_LEFT_FORWARD = 0x04,
     RADIO_CMD_MOTOR_LEFT_BACKWARD = 0x05,
     RADIO_CMD_MOTOR_RIGHT_FORWARD = 0x06,
-    RADIO_CMD_MOTOR_RIGHT_BACKWARD = 0x07
+    RADIO_CMD_MOTOR_RIGHT_BACKWARD = 0x07,
+    RADIO_CMD_COUNT
 } RadioCommand;
 
 typedef enum {
@@ -73,19 +75,8 @@ bool uart_waiting() {
 }
 
 void radio_send(RadioCommand cmd, uint8_t data) {
-    // Send command
-    uint8_t packed = (cmd << 4) | (0x0F & (data >> 4));
-    uart_send(packed);
-
-    // TODO: Check for ACK
-}
-
-RadioCommand radio_get(uint8_t *data) {
-    uint8_t packed = uart_recv();
-    RadioCommand cmd = (RadioCommand)(packed >> 4);
-    *data = packed & 0x0F;
-
-    return cmd;
+    uart_send(cmd);
+    uart_send(data);
 }
 
 #endif

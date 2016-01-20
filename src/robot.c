@@ -39,7 +39,7 @@ static volatile bool HasCommand;
 static volatile RadioCommand Command;
 static volatile uint8_t CommandData;
 
-#define UART_BUFFER_COUNT 64
+#define UART_BUFFER_COUNT 64 
 static uint8_t UartRecvBuffer[UART_BUFFER_COUNT];
 
 typedef struct {
@@ -96,6 +96,23 @@ ISR(USART_RX_vect) {
     // TODO: Buffering
     uint8_t packed = UDR0;
     buffer_write(&UartBuffer, packed);
+}
+        
+bool poll_buffer(volatile CircleBuffer *buffer, volatile RadioCommand *cmd, volatile uint8_t *data) {
+    // Read until start byte
+    if (!buffer_empty(buffer)) {
+        uint8_t byte = buffer_read(buffer);
+        if (byte >= RADIO_CMD_COUNT || byte == RADIO_CMD_RESERVED) {
+            // Discard this, we might be reading data instad of command
+            return 0;
+        }
+        *cmd = (RadioCommand)byte;
+        // TODO: Do not block, but check if there is at least 2 bytes before processing.
+        while (buffer_empty(buffer)); // Might not be received yet...
+        *data = buffer_read(buffer);
+        return 1;
+    }
+    return 0;
 }
 
 ISR(PCINT1_vect) {
@@ -213,7 +230,7 @@ int main(void) {
     set_bit(DDRC, 0);
     set_bit(PORTC, 0);
 
-    init_uart(9600, F_CPU);
+    init_uart(19200, F_CPU);
     UartBuffer.data = UartRecvBuffer;
     UartBuffer.start = 0;
     UartBuffer.end = 0;
@@ -270,15 +287,8 @@ int main(void) {
         }
 #endif
 
-        if (!buffer_empty(&UartBuffer)) {
-            uint8_t packed = buffer_read(&UartBuffer);
-            Command = (RadioCommand)(packed >> 4);
-            CommandData = (packed & 0x0F);
-            HasCommand = 1;
-        }
-
-        if (HasCommand) {
-            uint8_t data = CommandData << 4;
+        while (poll_buffer(&UartBuffer, &Command, &CommandData)) {
+            uint8_t data = CommandData;
             switch (Command) {
                 case RADIO_CMD_LIGHT_ON:{
                     set_bit(PORTC, 0);

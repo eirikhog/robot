@@ -51,7 +51,7 @@ typedef enum {
 
 int main(void) {
     // UART for radio.
-    init_uart(9600, F_CPU);
+    init_uart(19200, F_CPU);
 
     // LCD Screen
     lcd_init();
