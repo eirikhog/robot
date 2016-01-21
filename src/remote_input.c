@@ -5,10 +5,10 @@
 ISR(ADC_vect) {
     if (ADMUX & (1 << MUX0)) { // ADC Channel 1
         ADMUX &= ~(1 << MUX0);
-        input_state.joystick.x = ADC;
+        input_state.joystick.y = ADC;
     } else { // ADC Channel 0
         ADMUX |= (1 << MUX0);
-        input_state.joystick.y = ADC;
+        input_state.joystick.x = ADC;
     }
 }
 

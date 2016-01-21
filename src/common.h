@@ -14,16 +14,18 @@ typedef uint8_t bool;
 // #define abs(x) ((x > 0) ? x : -x)
 #define max(x,y) ((x < y) ? y : x)
 
+typedef enum {
+    FORWARD,
+    BACKWARD
+} Direction;
+
 
 typedef enum {
-    RADIO_CMD_RESERVED = 0x00,
-	RADIO_CMD_LIGHT_ON = 0x01,
-	RADIO_CMD_LIGHT_OFF = 0x02,
-    RADIO_CMD_STOP = 0x03,
-    RADIO_CMD_MOTOR_LEFT_FORWARD = 0x04,
-    RADIO_CMD_MOTOR_LEFT_BACKWARD = 0x05,
-    RADIO_CMD_MOTOR_RIGHT_FORWARD = 0x06,
-    RADIO_CMD_MOTOR_RIGHT_BACKWARD = 0x07,
+    RADIO_CMD_RESERVED = 0,
+	RADIO_CMD_LIGHT_ON,
+	RADIO_CMD_LIGHT_OFF,
+    RADIO_CMD_STOP,
+    RADIO_CMD_SET_MOTOR,
     RADIO_CMD_COUNT
 } RadioCommand;
 
@@ -34,7 +36,7 @@ typedef enum {
 
 typedef struct {
     RadioCommand cmd;
-    uint8_t data;
+    uint8_t data[4];
 } RemoteCommand;
 
 void init_uart(uint16_t baud, uint32_t freq) {
@@ -74,9 +76,13 @@ bool uart_waiting() {
     return (UCSR0A & (1 << RXC0)) != 0;
 }
 
-void radio_send(RadioCommand cmd, uint8_t data) {
+// data must be 4 bytes!
+void radio_send(RadioCommand cmd, uint8_t *data) {
     uart_send(cmd);
-    uart_send(data);
+    uart_send(*data);
+    uart_send(*(data + 1));
+    uart_send(*(data + 2));
+    uart_send(*(data + 3));
 }
 
 #endif
