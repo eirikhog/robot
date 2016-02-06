@@ -223,18 +223,13 @@ int main(void) {
     init_motor();
     _delay_ms(100);
 
-    motor_set_left(FORWARD, 0xFF);
-    motor_set_right(FORWARD, 0xFF);
+    //motor_set_left(FORWARD, 0xFF);
+    //motor_set_right(FORWARD, 0xFF);
 
-#if 0
-    init_uart(19200, F_CPU);
     init_range();
-
-    UCSR0B |= (1 << RXCIE0);
-
+    sei();
     HasCommand = 0;
 
-    sei();
     #define STOP_SAMPLES 8 
     const uint8_t stopThreshold = STOP_SAMPLES / 4;
     bool stopSamples[STOP_SAMPLES];
@@ -266,6 +261,8 @@ int main(void) {
         } else {
             set_bit(PORTC, 0);
         }
+    }
+#if 0
         while (poll_buffer(&UartBuffer, &Command, CommandData)) {
             set_bit(PORTC, 0);
             switch (Command) {
