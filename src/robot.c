@@ -155,11 +155,11 @@ void stop_motors() {
 
 void motor_set_right(Direction d, uint8_t speed) {
     switch (d) {
-        case FORWARD:{
+        case BACKWARD:{
             OCR0A = speed;
             OCR0B = 0;
         } break;
-        case BACKWARD:{
+        case FORWARD:{
             OCR0A = 0;
             OCR0B = speed;
         } break;            
@@ -168,11 +168,11 @@ void motor_set_right(Direction d, uint8_t speed) {
 
 void motor_set_left(Direction d, uint16_t speed) {
     switch (d) {
-        case FORWARD:{
+        case BACKWARD:{
             OCR1A = 0;
             OCR1B = speed;
         } break;
-        case BACKWARD:{
+        case FORWARD:{
             OCR1A = speed;
             OCR1B = 0;
         } break;
@@ -216,12 +216,18 @@ int main(void) {
     // Initialize LED
     set_bit(DDRC, 0);
     set_bit(PORTC, 0);
-
-    init_uart(19200, F_CPU);
     UartBuffer.data = UartRecvBuffer;
     UartBuffer.start = 0;
     UartBuffer.capacity = UART_BUFFER_COUNT;
+
     init_motor();
+    _delay_ms(100);
+
+    motor_set_left(FORWARD, 0xFF);
+    motor_set_right(FORWARD, 0xFF);
+
+#if 0
+    init_uart(19200, F_CPU);
     init_range();
 
     UCSR0B |= (1 << RXCIE0);
@@ -229,7 +235,6 @@ int main(void) {
     HasCommand = 0;
 
     sei();
-#if 0
     #define STOP_SAMPLES 8 
     const uint8_t stopThreshold = STOP_SAMPLES / 4;
     bool stopSamples[STOP_SAMPLES];
@@ -261,9 +266,6 @@ int main(void) {
         } else {
             set_bit(PORTC, 0);
         }
-#else
-    while (1) {
-#endif
         while (poll_buffer(&UartBuffer, &Command, CommandData)) {
             set_bit(PORTC, 0);
             switch (Command) {
@@ -285,7 +287,6 @@ int main(void) {
                     motor_set_left(left_dir, left_speed);
                     motor_set_right(right_dir, right_speed);
                 } break;
-#if 0
                 case RADIO_CMD_MOTOR_LEFT_FORWARD:{
                     motor_set_left(FORWARD, data);
                 } break;
@@ -298,7 +299,6 @@ int main(void) {
                 case RADIO_CMD_MOTOR_RIGHT_BACKWARD:{
                     motor_set_right(BACKWARD, data);
                 } break;
-#endif
                 default:{
                     asm("nop"::);
                 }
@@ -306,6 +306,7 @@ int main(void) {
             HasCommand = 0;
         }
     }
+#endif
 }
 
 
