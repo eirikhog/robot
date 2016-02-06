@@ -7,8 +7,8 @@ OBJDUMP=avr-objdump
 AVRSIZE=avr-size
 
 all: robot remote
-	$(AVRSIZE) --mcu=$(MCU) -C robot.elf
-	$(AVRSIZE) --mcu=$(MCU) -C remote.elf
+#	$(AVRSIZE) --mcu=$(MCU) -C robot.elf
+#	$(AVRSIZE) --mcu=$(MCU) -C remote.elf
 
 robot:
 	$(CC) robot.c -c $(CFLAGS) -o robot.o
