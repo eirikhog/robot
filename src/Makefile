@@ -22,3 +22,7 @@ remote:
 
 clean:
 	rm *.o *.elf *.lst
+
+program: all
+	avrdude -c usbasp -p atmega328p -U flash:w:robot.elf
+
