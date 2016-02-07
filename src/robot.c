@@ -6,6 +6,7 @@
 #include <util/delay.h>
 
 #include "common.h"
+#include "nrf24.h"
 
 typedef struct {
     uint32_t counter;
@@ -225,6 +226,8 @@ int main(void) {
 
     //motor_set_left(FORWARD, 0xFF);
     //motor_set_right(FORWARD, 0xFF);
+
+    nrf24_init();
 
     init_range();
     sei();
