@@ -11,20 +11,41 @@
  * PIND7 = IRQ
  */
 
-static void
-spi_transmit(char data) {
+#define R_REGISTER 0x00
+#define W_REGISTER 0x20
+#define NOP        0xFF
+
+static uint8_t
+spi_transfer(uint8_t data) {
     SPDR = data;
     while(!(SPSR & (1<<SPIF)));
+    return SPDR;
+}
+
+static void
+spi_transfer_many(uint8_t *ibuffer, uint8_t *obuffer,
+                  uint8_t len) {
+    for (uint8_t i = 0; i < len; ++i) {
+        obuffer[i] = spi_transfer(ibuffer[i]);
+    }
 }
 
 static void
 chip_select() {
-    PORTD |= (1<<PD7);
+    PORTD &= ~(1<<PD7);
 }
 
 static void
 chip_deselect() {
-    PORTD &= ~(1<<PD7);
+    PORTD |= (1<<PD7);
+}
+
+static void
+nrf24_read_register(uint8_t addr, uint8_t *buffer, uint8_t len) {
+    chip_select();
+    spi_transfer(R_REGISTER | (0x1F & addr)); 
+    spi_transfer_many(buffer, buffer, len);
+    chip_deselect();
 }
 
 void nrf24_init() {
@@ -37,13 +58,13 @@ void nrf24_init() {
     // SPI Enable, Master mode, f_osc / 16
     SPCR = (1<<SPE)|(1<<MSTR)|(1<<SPR0);
     // TODO: Clock mode?
+
+    uint8_t buff = 0;
+    nrf24_read_register(0, &buff, 1);
 }
 
 void nrf24_config(uint16_t channel, uint16_t size) {
     chip_select();
-
-    // Dummy:
-    spi_transmit('Q');
 
     chip_deselect();
 }
