@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 void nrf24_init();
-void nrf24_config(uint16_t channel, uint16_t size);
+void nrf24_config(uint8_t channel, uint8_t size);
 void nrf24_set_rx_addr(uint8_t mac[5]);
 void nrf24_set_tx_addr(uint8_t mac[5]);
 void nrf24_send(void *data);
