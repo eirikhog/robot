@@ -112,6 +112,7 @@ csn_high() {
     PORTD |= (1<<PD7);
 }
 
+#if 0
 static void
 ce_low() {
     // TODO: Implement
@@ -121,6 +122,7 @@ static void
 ce_high() {
     // TODO: Implement
 }
+#endif
 
 static void
 nrf24_read_register(uint8_t addr, uint8_t *buffer, uint8_t len) {
