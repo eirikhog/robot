@@ -103,40 +103,50 @@ spi_transfer_many(uint8_t *ibuffer, uint8_t *obuffer,
 }
 
 static void
-chip_select() {
+csn_low() {
     PORTD &= ~(1<<PD7);
 }
 
 static void
-chip_deselect() {
+csn_high() {
     PORTD |= (1<<PD7);
 }
 
 static void
+ce_low() {
+    // TODO: Implement
+}
+
+static void
+ce_high() {
+    // TODO: Implement
+}
+
+static void
 nrf24_read_register(uint8_t addr, uint8_t *buffer, uint8_t len) {
-    chip_select();
+    csn_low();
     spi_transfer(R_REGISTER | (0x1F & addr)); 
     spi_transfer_many(buffer, buffer, len);
-    chip_deselect();
+    csn_high();
 }
 
 
 void nrf24_write_config(uint8_t reg, uint8_t value) {
-    chip_select();
+    csn_low();
 
     spi_transfer(W_REGISTER | (REGISTER_MASK & reg));
     spi_transfer(value);
 
-    chip_deselect();
+    csn_high();
 }
 
 uint8_t nrf24_read_config(uint8_t reg) {
-    chip_select();
+    csn_low();
 
     spi_transfer(R_REGISTER | (REGISTER_MASK & reg));
     uint8_t result = spi_transfer(NOP);
 
-    chip_deselect();
+    csn_high();
 
     return result;
 }
@@ -191,9 +201,9 @@ void nrf24_config(uint8_t channel, uint8_t size) {
 }
 
 void nrf24_power_up(void) {
-    chip_select();
+    csn_low();
     spi_transfer(FLUSH_RX);
-    chip_deselect();
+    csn_high();
 
     nrf24_write_config(STATUS, (1 << RX_DR) | (1 << TX_DS) | (1 << MAX_RT));
 
