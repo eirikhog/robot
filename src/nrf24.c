@@ -92,11 +92,12 @@
 #define SPI_SCK_HIGH() PORTD |= (1<<PD4)
 #define SPI_MOSI_LOW() PORTD &= ~(1<<PD2)
 #define SPI_MOSI_HIGH() PORTD |= (1<<PD2)
+#define SPI_MISO_READ() (PIND & (1<<PD3))
 
 static void
 spi_init() {
-    DDRD |= (1<<PD4)|(1<<PD6);
-    DDRD &= ~(1<<PD5);
+    DDRD |= (1<<PD4)|(1<<PD2);
+    DDRD &= ~(1<<PD3);
 }
 
 static uint8_t
@@ -118,7 +119,7 @@ spi_transfer(uint8_t data) {
 
         SPI_SCK_HIGH();
 
-        uint8_t inPin = PIND & (1<<PD5);
+        uint8_t inPin = SPI_MISO_READ();
         if (inPin) {
             in |= (1 << (7 - i));
         }
