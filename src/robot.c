@@ -196,8 +196,6 @@ void init_range() {
 
     // Enable interrupts
     PCMSK1 |= (1<<PCINT10);
-    //EICRA |= (1<<ISC11) | (1<<ISC10);
-    //EIMSK |= (1<<INT1);
     PCICR |= (1<<PCIE1);
 }
 
@@ -214,6 +212,9 @@ void toggle_led() {
         set_bit(PORTC, 0);
     }
 }
+
+static uint8_t source_addr[5] = { 0x0A, 0x0A, 0x0A, 0x0A, 0x0A };
+static uint8_t dest_addr[5] = { 0x1B, 0x1B, 0x1B, 0x1B, 0x1B };
 
 int main(void) {
 
@@ -236,7 +237,9 @@ int main(void) {
     //nrf24_init();
     DEBUG_PRINT("NRF24 Init done!\n");
 
-    //nrf24_config(7, 16);
+    nrf24_config(7, 16);
+    nrf24_set_rx_addr(source_addr);
+    nrf24_set_tx_addr(dest_addr);
 
     DEBUG_PRINT("Init range...\n");
     init_range();

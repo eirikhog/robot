@@ -151,6 +151,13 @@ nrf24_read_register(uint8_t addr, uint8_t *buffer, uint8_t len) {
     CSN_HIGH();
 }
 
+static void
+nrf24_write_register(uint8_t addr, uint8_t *buffer, uint8_t len) {
+    CSN_LOW();
+    spi_transfer(W_REGISTER | (0x1F & addr));
+    spi_transfer_many(buffer, buffer, len);
+    CSN_HIGH();
+}
 
 void nrf24_write_config(uint8_t reg, uint8_t value) {
     CSN_LOW();
@@ -227,6 +234,18 @@ void nrf24_config(uint8_t channel, uint8_t size) {
 
     nrf24_power_up();
     DEBUG_PRINT("NRF24 Config done.\n");
+}
+
+void nrf24_set_rx_addr(uint8_t addr[5]) {
+    CE_LOW();
+    nrf24_write_register(RX_ADDR_P1, addr, 5);
+    CE_HIGH();
+}
+
+void nrf24_set_tx_addr(uint8_t addr[5]) {
+    /* RX_ADDR_P0 must be set to the sending addr for auto ack to work. */
+    nrf24_write_register(RX_ADDR_P0, addr, 5);
+    nrf24_write_register(TX_ADDR, addr, 5);
 }
 
 void nrf24_power_up(void) {
