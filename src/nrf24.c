@@ -87,15 +87,46 @@
 #define ENAA_P1 1
 #define ENAA_P0 0
 
+// SPI Software functions
+#define SPI_SCK_LOW() PORTD &= ~(1<<PD4)
+#define SPI_SCK_HIGH() PORTD |= (1<<PD4)
+#define SPI_MOSI_LOW() PORTD &= ~(1<<PD2)
+#define SPI_MOSI_HIGH() PORTD |= (1<<PD2)
+
+static void
+spi_init() {
+    DDRD |= (1<<PD4)|(1<<PD6);
+    DDRD &= ~(1<<PD5);
+}
+
 static uint8_t
 spi_transfer(uint8_t data) {
     char buffer[64];
     sprintf(buffer, "SPI Send: 0x%02x\n", data);
     DEBUG_PRINT(buffer);
-    SPDR = data;
-    while(!(SPSR & (1<<SPIF)));
-    DEBUG_PRINT("SPI end.\n");
-    return SPDR;
+
+    uint8_t in = 0;
+
+    SPI_SCK_LOW();
+    for (uint8_t i = 0; i < 8; ++i) {
+        // Send MSB first
+        if (data & (1 << (7 - i))) {
+            SPI_MOSI_HIGH();
+        } else {
+            SPI_MOSI_LOW();
+        }
+
+        SPI_SCK_HIGH();
+
+        uint8_t inPin = PIND & (1<<PD5);
+        if (inPin) {
+            in |= (1 << (7 - i));
+        }
+
+        SPI_SCK_LOW();
+    }
+
+    return in;
 }
 
 static void
@@ -150,6 +181,8 @@ void nrf24_init() {
     DDRB = (1<<PB3)|(1<<PB5);
     // SPI Enable, Master mode, f_osc / 128
     SPCR = (1<<SPE)|(1<<MSTR)|(1<<SPR1)|(1<<SPR0);
+
+    spi_init();
 
     CE_LOW();
     CSN_HIGH();

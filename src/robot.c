@@ -196,8 +196,8 @@ void init_range() {
 
     // Enable interrupts
     PCMSK1 |= (1<<PCINT10);
-    EICRA |= (1<<ISC11) | (1<<ISC10);
-    EIMSK |= (1<<INT1);
+    //EICRA |= (1<<ISC11) | (1<<ISC10);
+    //EIMSK |= (1<<INT1);
     PCICR |= (1<<PCIE1);
 }
 
@@ -233,11 +233,12 @@ int main(void) {
     //motor_set_right(FORWARD, 0xFF);
 
     DEBUG_PRINT("NRF24 Init...\n");
-    nrf24_init();
+    //nrf24_init();
     DEBUG_PRINT("NRF24 Init done!\n");
 
-    nrf24_config(7, 16);
+    //nrf24_config(7, 16);
 
+    DEBUG_PRINT("Init range...\n");
     init_range();
     sei();
     HasCommand = 0;
@@ -246,8 +247,9 @@ int main(void) {
     const uint8_t stopThreshold = STOP_SAMPLES / 4;
     bool stopSamples[STOP_SAMPLES];
     uint8_t stopCounter = 0;
+
     while (1) {
-        DEBUG_PRINT("Hello from mcu!\n");
+        DEBUG_PRINT("MCU loop!\n");
         range_check();
         uint8_t waitTime = 0;
         uint8_t maxWait = 200;
