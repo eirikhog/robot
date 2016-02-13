@@ -246,13 +246,19 @@ int main(void) {
     sei();
     HasCommand = 0;
 
-    #define STOP_SAMPLES 8 
+    #define STOP_SAMPLES 8
     const uint8_t stopThreshold = STOP_SAMPLES / 4;
     bool stopSamples[STOP_SAMPLES];
     uint8_t stopCounter = 0;
 
+    DEBUG_PRINT("Starting program main loop...\n");
     while (1) {
-        DEBUG_PRINT("MCU loop!\n");
+        if (nrf24_has_data()) {
+            uint8_t dummy = 0;
+            nrf24_recv(&dummy, 1);
+            DEBUG_PRINT("Got data!\n");
+        }
+
         range_check();
         uint8_t waitTime = 0;
         uint8_t maxWait = 200;

@@ -3,6 +3,7 @@
 
 #define DEBUG_INIT() robot_debug_init()
 #define DEBUG_PRINT(x) robot_debug_send(x)
+#define DEBUG_TRACE() robot_debug_send_line(__FUNCTION__)
 
 void robot_debug_init() {
 	// Debug output set to UART
@@ -25,11 +26,16 @@ void robot_debug_send_byte(uint8_t data) {
     UDR0 = data;
 }
 
-void robot_debug_send(char *str) {
+void robot_debug_send(const char *str) {
     while (*str) {
         robot_debug_send_byte(*str);
         str++;
     }
+}
+
+void robot_debug_send_line(const char *str) {
+	robot_debug_send(str);
+    robot_debug_send_byte('\n');
 }
 
 #endif

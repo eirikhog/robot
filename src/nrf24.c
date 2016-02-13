@@ -94,6 +94,13 @@
 #define SPI_MOSI_HIGH() PORTD |= (1<<PD2)
 #define SPI_MISO_READ() (PIND & (1<<PD3))
 
+// FIFO Status register
+#define FIFO_TX_REUSE 6
+#define FIFO_TX_FULL  5
+#define FIFO_TX_EMPTY 4
+#define FIFO_RX_FULL  1
+#define FIFO_RX_EMPTY 0
+
 static void
 spi_init() {
     DDRD |= (1<<PD4)|(1<<PD2);
@@ -102,9 +109,9 @@ spi_init() {
 
 static uint8_t
 spi_transfer(uint8_t data) {
-    char buffer[64];
-    sprintf(buffer, "SPI Send: 0x%02x\n", data);
-    DEBUG_PRINT(buffer);
+    //char buffer[64];
+    //sprintf(buffer, "SPI Send: 0x%02x\n", data);
+    //DEBUG_PRINT(buffer);
 
     uint8_t in = 0;
 
@@ -145,6 +152,7 @@ spi_transfer_many(uint8_t *ibuffer, uint8_t *obuffer,
 
 static void
 nrf24_read_register(uint8_t addr, uint8_t *buffer, uint8_t len) {
+    DEBUG_TRACE();
     CSN_LOW();
     spi_transfer(R_REGISTER | (0x1F & addr)); 
     spi_transfer_many(buffer, buffer, len);
@@ -153,6 +161,7 @@ nrf24_read_register(uint8_t addr, uint8_t *buffer, uint8_t len) {
 
 static void
 nrf24_write_register(uint8_t addr, uint8_t *buffer, uint8_t len) {
+    DEBUG_TRACE();
     CSN_LOW();
     spi_transfer(W_REGISTER | (0x1F & addr));
     spi_transfer_many(buffer, buffer, len);
@@ -160,6 +169,7 @@ nrf24_write_register(uint8_t addr, uint8_t *buffer, uint8_t len) {
 }
 
 void nrf24_write_config(uint8_t reg, uint8_t value) {
+    DEBUG_TRACE();
     CSN_LOW();
 
     spi_transfer(W_REGISTER | (REGISTER_MASK & reg));
@@ -169,6 +179,7 @@ void nrf24_write_config(uint8_t reg, uint8_t value) {
 }
 
 uint8_t nrf24_read_config(uint8_t reg) {
+    DEBUG_TRACE();
     CSN_LOW();
 
     spi_transfer(R_REGISTER | (REGISTER_MASK & reg));
@@ -180,6 +191,7 @@ uint8_t nrf24_read_config(uint8_t reg) {
 }
 
 void nrf24_init() {
+    DEBUG_TRACE();
     // CSN output
     DDRD |= (1<<PD7);
     // CE output
@@ -199,13 +211,11 @@ void nrf24_init() {
 static uint8_t packet_size;
 
 void nrf24_config(uint8_t channel, uint8_t size) {
-    DEBUG_PRINT("NRF24 Config called.\n");
+    DEBUG_TRACE();
     packet_size = size;
 
-    DEBUG_PRINT("Write config...\n");
     nrf24_write_config(RF_CH, channel);
 
-    DEBUG_PRINT("Writing pipe config...\n");
     nrf24_write_config(RX_PW_P0, 0);
     nrf24_write_config(RX_PW_P1, size & 0x1F);
     nrf24_write_config(RX_PW_P2, 0);
@@ -213,7 +223,6 @@ void nrf24_config(uint8_t channel, uint8_t size) {
     nrf24_write_config(RX_PW_P4, 0);
     nrf24_write_config(RX_PW_P5, 0);
 
-    DEBUG_PRINT("Writing air config...\n");
     // Set Air Data Rate = 1mbit, RF output power 0db
     nrf24_write_config(RF_SETUP, 0x06);
 
@@ -233,22 +242,23 @@ void nrf24_config(uint8_t channel, uint8_t size) {
     nrf24_write_config(DYNPD, 0);
 
     nrf24_power_up();
-    DEBUG_PRINT("NRF24 Config done.\n");
 }
 
 void nrf24_set_rx_addr(uint8_t addr[5]) {
+    DEBUG_TRACE();
     CE_LOW();
     nrf24_write_register(RX_ADDR_P1, addr, 5);
     CE_HIGH();
 }
 
 void nrf24_set_tx_addr(uint8_t addr[5]) {
-    /* RX_ADDR_P0 must be set to the sending addr for auto ack to work. */
+    DEBUG_TRACE();
     nrf24_write_register(RX_ADDR_P0, addr, 5);
     nrf24_write_register(TX_ADDR, addr, 5);
 }
 
 void nrf24_power_up(void) {
+    DEBUG_TRACE();
     CSN_LOW();
     spi_transfer(FLUSH_RX);
     CSN_HIGH();
@@ -257,12 +267,54 @@ void nrf24_power_up(void) {
 
     // TODO: Read CONFIG register and update before writing.
 
-    // TODO: Set chip enable low?
+    CE_LOW();
     nrf24_write_config(CONFIG, (1 << EN_CRC) | (0 << CRCO) | (1 << PWR_UP) | (1 << PRIM_RX));
+    CE_HIGH();
 }
 
 void nrf24_power_down(void) {
-    // TODO: CE low?
+    DEBUG_TRACE();
+
+    CE_LOW();
     nrf24_write_config(CONFIG, (1 << EN_CRC) | (0 << CRCO));
+    CE_HIGH();
 }
 
+uint8_t nrf24_rx_fifo_empty(void) {
+    DEBUG_TRACE();
+
+    uint8_t fifoStatus = 0;
+    nrf24_read_register(FIFO_STATUS, &fifoStatus, 1);
+    return (fifoStatus & (1 << FIFO_RX_EMPTY));
+}
+
+uint8_t nrf24_has_data(void) {
+    DEBUG_TRACE();
+
+    uint8_t status = nrf24_status();
+    if (status & (1 << RX_DR)) {
+        return 1;
+    }
+    uint8_t fifoEmpty = nrf24_rx_fifo_empty();
+    return fifoEmpty;
+}
+
+void nrf24_recv(uint8_t *buffer, uint8_t len) {
+    DEBUG_TRACE();
+
+    CSN_LOW();
+    spi_transfer(R_RX_PAYLOAD);
+    spi_transfer_many(buffer, buffer, len);
+    CSN_HIGH();
+    nrf24_write_config(STATUS, (1<<RX_DR));
+}
+
+uint8_t nrf24_status(void) {
+    DEBUG_TRACE();
+
+    CSN_LOW();
+    uint8_t status = spi_transfer(NOP);
+    CSN_HIGH();
+
+    return status;
+}
