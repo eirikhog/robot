@@ -4,4 +4,5 @@ shell.bat
 *.o
 *.elf
 *.swp
-
+*.sublime-project
+*.sublime-workspace
