@@ -4,9 +4,9 @@
 #include <stdio.h>
 /**
  * Pin configuration:
- * PINB5 = SCK
- * PINB4 = MISO
- * PINB3 = MOSI
+ * PIND4 = SCK
+ * PIND3 = MISO
+ * PIND2 = MOSI
  * PINB0 = CS
  * PIND7 = IRQ
  */
