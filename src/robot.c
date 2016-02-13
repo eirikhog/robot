@@ -6,7 +6,10 @@
 #include <util/delay.h>
 
 #include "common.h"
+#include "robot_debug.h"
 #include "nrf24.h"
+// TODO: Move out
+#include "nrf24.c"
 
 typedef struct {
     uint32_t counter;
@@ -212,33 +215,9 @@ void toggle_led() {
     }
 }
 
-void init_uart2(void) {
-    uint16_t baud = 9600;
-    uint16_t ubrr = F_CPU/16/baud-1;
-    /* Set baud rate */
-    UBRR0H = (unsigned char)(ubrr>>8); 
-    UBRR0L = (unsigned char)ubrr;
-    /* Enable receiver and transmitter */
-    UCSR0B = (1<<RXEN0)|(1<<TXEN0);
-    /* Set frame format: 8data, 2stop bit */
-    UCSR0C = (1<<USBS0)|(3<<UCSZ00);
-}
-
-void uart_send2(uint8_t data) {
-    /* Wait for empty transmit buffer */
-    while (!(UCSR0A & (1<<UDRE0)));
-    /* Put data into buffer, sends the data */
-    UDR0 = data;
-}
-
-void uart_send_s(char *str) {
-    while (*str) {
-        uart_send2(*str);
-        str++;
-    }
-}
-
 int main(void) {
+
+    DEBUG_INIT();
 
     // Initialize LED
     set_bit(DDRC, 0);
@@ -253,8 +232,11 @@ int main(void) {
     //motor_set_left(FORWARD, 0xFF);
     //motor_set_right(FORWARD, 0xFF);
 
-    //nrf24_init();
-    init_uart2();
+    DEBUG_PRINT("NRF24 Init...\n");
+    nrf24_init();
+    DEBUG_PRINT("NRF24 Init done!\n");
+
+    nrf24_config(7, 16);
 
     init_range();
     sei();
@@ -265,7 +247,7 @@ int main(void) {
     bool stopSamples[STOP_SAMPLES];
     uint8_t stopCounter = 0;
     while (1) {
-        uart_send_s("Hello from mcu!\n");
+        DEBUG_PRINT("Hello from mcu!\n");
         range_check();
         uint8_t waitTime = 0;
         uint8_t maxWait = 200;

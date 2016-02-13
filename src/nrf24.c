@@ -1,7 +1,7 @@
 #include "nrf24.h"
 
 #include <avr/io.h>
-
+#include <stdio.h>
 /**
  * Pin configuration:
  * PINB5 = SCK
@@ -89,8 +89,12 @@
 
 static uint8_t
 spi_transfer(uint8_t data) {
+    char buffer[64];
+    sprintf(buffer, "SPI Send: 0x%02x\n", data);
+    DEBUG_PRINT(buffer);
     SPDR = data;
     while(!(SPSR & (1<<SPIF)));
+    DEBUG_PRINT("SPI end.\n");
     return SPDR;
 }
 
@@ -137,26 +141,30 @@ uint8_t nrf24_read_config(uint8_t reg) {
 }
 
 void nrf24_init() {
+    // CSN output
     DDRD |= (1<<PD7);
+    // CE output
     DDRB |= (1<<PB0);
 
     // Set output: MOSI and SCK
     DDRB = (1<<PB3)|(1<<PB5);
-    // SPI Enable, Master mode, f_osc / 16
-    SPCR = (1<<SPE)|(1<<MSTR)|(1<<SPR0);
+    // SPI Enable, Master mode, f_osc / 128
+    SPCR = (1<<SPE)|(1<<MSTR)|(1<<SPR1)|(1<<SPR0);
 
-    uint8_t buff = 0;
-    nrf24_read_register(0, &buff, 1);
+    CE_LOW();
+    CSN_HIGH();
 }
 
 static uint8_t packet_size;
 
-
 void nrf24_config(uint8_t channel, uint8_t size) {
+    DEBUG_PRINT("NRF24 Config called.\n");
     packet_size = size;
 
+    DEBUG_PRINT("Write config...\n");
     nrf24_write_config(RF_CH, channel);
 
+    DEBUG_PRINT("Writing pipe config...\n");
     nrf24_write_config(RX_PW_P0, 0);
     nrf24_write_config(RX_PW_P1, size & 0x1F);
     nrf24_write_config(RX_PW_P2, 0);
@@ -164,6 +172,7 @@ void nrf24_config(uint8_t channel, uint8_t size) {
     nrf24_write_config(RX_PW_P4, 0);
     nrf24_write_config(RX_PW_P5, 0);
 
+    DEBUG_PRINT("Writing air config...\n");
     // Set Air Data Rate = 1mbit, RF output power 0db
     nrf24_write_config(RF_SETUP, 0x06);
 
@@ -183,6 +192,7 @@ void nrf24_config(uint8_t channel, uint8_t size) {
     nrf24_write_config(DYNPD, 0);
 
     nrf24_power_up();
+    DEBUG_PRINT("NRF24 Config done.\n");
 }
 
 void nrf24_power_up(void) {
