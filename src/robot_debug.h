@@ -3,7 +3,12 @@
 
 #define DEBUG_INIT() robot_debug_init()
 #define DEBUG_PRINT(x) robot_debug_send(x)
+
+#if 0
 #define DEBUG_TRACE() robot_debug_send_line(__FUNCTION__)
+#else
+#define DEBUG_TRACE()
+#endif
 
 void robot_debug_init() {
 	// Debug output set to UART

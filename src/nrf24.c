@@ -2,12 +2,14 @@
 
 #include <avr/io.h>
 #include <stdio.h>
+
 /**
  * Pin configuration:
  * PIND4 = SCK
  * PIND3 = MISO
  * PIND2 = MOSI
- * PINB0 = CS
+ * PINB0 = CSN
+ * PINB7 = CE
  * PIND7 = IRQ
  */
 
@@ -151,7 +153,7 @@ spi_transfer_many(uint8_t *ibuffer, uint8_t *obuffer,
 #define CE_HIGH() PORTB |= (1<<PB7)
 
 static void
-nrf24_read_register(uint8_t addr, uint8_t *buffer, uint8_t len) {
+nrf24_read_register_len(uint8_t addr, uint8_t *buffer, uint8_t len) {
     DEBUG_TRACE();
     CSN_LOW();
     spi_transfer(R_REGISTER | (0x1F & addr)); 
@@ -159,16 +161,24 @@ nrf24_read_register(uint8_t addr, uint8_t *buffer, uint8_t len) {
     CSN_HIGH();
 }
 
+static uint8_t
+nrf24_read_register(uint8_t addr) {
+    DEBUG_TRACE();
+    uint8_t result = 0;
+    nrf24_read_register_len(addr, &result, 1);
+    return result;
+}
+
 static void
-nrf24_write_register(uint8_t addr, uint8_t *buffer, uint8_t len) {
+nrf24_write_register_len(uint8_t addr, uint8_t *buffer, uint8_t len) {
     DEBUG_TRACE();
     CSN_LOW();
-    spi_transfer(W_REGISTER | (0x1F & addr));
+    spi_transfer(W_REGISTER | (REGISTER_MASK & addr));
     spi_transfer_many(buffer, buffer, len);
     CSN_HIGH();
 }
 
-void nrf24_write_config(uint8_t reg, uint8_t value) {
+void nrf24_write_register(uint8_t reg, uint8_t value) {
     DEBUG_TRACE();
     CSN_LOW();
 
@@ -195,10 +205,10 @@ void nrf24_init() {
     // CSN output
     DDRD |= (1<<PD7);
     // CE output
-    DDRB |= (1<<PB0);
+    DDRB |= _BV(PB7);
 
     // Set output: MOSI and SCK
-    DDRB = (1<<PB3)|(1<<PB5);
+    DDRB |= (1<<PB3)|(1<<PB5);
     // SPI Enable, Master mode, f_osc / 128
     SPCR = (1<<SPE)|(1<<MSTR)|(1<<SPR1)|(1<<SPR0);
 
@@ -208,105 +218,122 @@ void nrf24_init() {
     CSN_HIGH();
 }
 
-static uint8_t packet_size;
+static uint8_t payload_size;
 
 void nrf24_config(uint8_t channel, uint8_t size) {
     DEBUG_TRACE();
-    packet_size = size;
+    payload_size = size;
 
-    nrf24_write_config(RF_CH, channel);
-
-    nrf24_write_config(RX_PW_P0, 0);
-    nrf24_write_config(RX_PW_P1, size & 0x1F);
-    nrf24_write_config(RX_PW_P2, 0);
-    nrf24_write_config(RX_PW_P3, 0);
-    nrf24_write_config(RX_PW_P4, 0);
-    nrf24_write_config(RX_PW_P5, 0);
-
-    // Set Air Data Rate = 1mbit, RF output power 0db
-    nrf24_write_config(RF_SETUP, 0x06);
+    // Wait for the radio to settle in defined state.
+    _delay_ms(5);
 
     // Enable CRC
-    nrf24_write_config(CONFIG, (1 << EN_CRC) | (0 << CRCO));
+    nrf24_write_register(CONFIG, (1 << EN_CRC) | (0 << CRCO));
+
+    nrf24_write_register(RF_CH, channel);
+
+    nrf24_write_register(RX_PW_P0, 0);
+    nrf24_write_register(RX_PW_P1, size & 0x1F);
+
+    // Set Air Data Rate = 1mbit, RF output power 0db
+    nrf24_write_register(RF_SETUP, 0x06);
 
     // Auto Acknowledgment
-    nrf24_write_config(EN_AA, (1 << ENAA_P0) | (1 << ENAA_P1));
+    nrf24_write_register(EN_AA, (1 << ENAA_P0) | (1 << ENAA_P1));
 
     // Enable RX addr
-    nrf24_write_config(EN_RXADDR, (1 << ERX_P0) | (1 << ERX_P1));
+    nrf24_write_register(EN_RXADDR, (1 << ERX_P0) | (1 << ERX_P1));
     
     // Auto retransmit delay, 500 us, 15 retransmit
-    nrf24_write_config(SETUP_RETR, 0x1F);
+    nrf24_write_register(SETUP_RETR, 0x1F);
 
     // No dynamic length
-    nrf24_write_config(DYNPD, 0);
+    nrf24_write_register(DYNPD, 0);
+
+    // Reset current status
+    nrf24_write_register(STATUS, _BV(RX_DR) | _BV(TX_DS) | _BV(MAX_RT));
+
+    // Flush buffers
+    CSN_LOW();
+    spi_transfer(FLUSH_TX);
+    spi_transfer(FLUSH_RX);
+    CSN_HIGH();
 
     nrf24_power_up();
+
+    uint8_t config = nrf24_read_register(CONFIG);
+    nrf24_write_register(CONFIG, config | _BV(PRIM_RX));
+
+    CE_HIGH();
 }
 
 void nrf24_set_rx_addr(uint8_t addr[5]) {
     DEBUG_TRACE();
-    CE_LOW();
-    nrf24_write_register(RX_ADDR_P1, addr, 5);
-    CE_HIGH();
+    nrf24_write_register_len(RX_ADDR_P1, addr, 5);
 }
 
 void nrf24_set_tx_addr(uint8_t addr[5]) {
     DEBUG_TRACE();
-    nrf24_write_register(RX_ADDR_P0, addr, 5);
-    nrf24_write_register(TX_ADDR, addr, 5);
+    nrf24_write_register_len(RX_ADDR_P0, addr, 5);
+    nrf24_write_register_len(TX_ADDR, addr, 5);
+	nrf24_write_register(RX_PW_P0, payload_size);
 }
 
 void nrf24_power_up(void) {
     DEBUG_TRACE();
-    CSN_LOW();
-    spi_transfer(FLUSH_RX);
-    CSN_HIGH();
+	
+    uint8_t config = nrf24_read_register(CONFIG);
+    if (!(config & (1 << PWR_UP))) {
+        nrf24_write_register(CONFIG, config | _BV(PWR_UP));
 
-    nrf24_write_config(STATUS, (1 << RX_DR) | (1 << TX_DS) | (1 << MAX_RT));
-
-    // TODO: Read CONFIG register and update before writing.
-
-    CE_LOW();
-    nrf24_write_config(CONFIG, (1 << EN_CRC) | (0 << CRCO) | (1 << PWR_UP) | (1 << PRIM_RX));
-    CE_HIGH();
+        // Wait for transition state to complete.
+        _delay_ms(5);
+    }
 }
 
 void nrf24_power_down(void) {
     DEBUG_TRACE();
 
     CE_LOW();
-    nrf24_write_config(CONFIG, (1 << EN_CRC) | (0 << CRCO));
-    CE_HIGH();
+    uint8_t config = nrf24_read_register(CONFIG);
+    nrf24_write_register(CONFIG, config & ~_BV(PWR_UP));
 }
 
 uint8_t nrf24_rx_fifo_empty(void) {
     DEBUG_TRACE();
 
-    uint8_t fifoStatus = 0;
-    nrf24_read_register(FIFO_STATUS, &fifoStatus, 1);
+    uint8_t fifoStatus = nrf24_read_register(FIFO_STATUS);
     return (fifoStatus & (1 << FIFO_RX_EMPTY));
 }
 
 uint8_t nrf24_has_data(void) {
     DEBUG_TRACE();
-
+	
     uint8_t status = nrf24_status();
     if (status & (1 << RX_DR)) {
         return 1;
     }
     uint8_t fifoEmpty = nrf24_rx_fifo_empty();
-    return fifoEmpty;
+    return !fifoEmpty;
 }
 
-void nrf24_recv(uint8_t *buffer, uint8_t len) {
+void nrf24_recv(void *buffer, uint8_t len) {
     DEBUG_TRACE();
+
+	uint8_t *dest = (uint8_t *)buffer;
 
     CSN_LOW();
     spi_transfer(R_RX_PAYLOAD);
-    spi_transfer_many(buffer, buffer, len);
+	while (len--) {
+		*dest++ = spi_transfer(0xFF);
+	}
     CSN_HIGH();
-    nrf24_write_config(STATUS, (1<<RX_DR));
+
+	CSN_LOW();
+	spi_transfer(FLUSH_RX);
+	CSN_HIGH();
+
+    nrf24_write_register(STATUS, _BV(RX_DR) | _BV(MAX_RT) | _BV(TX_DS));
 }
 
 uint8_t nrf24_status(void) {

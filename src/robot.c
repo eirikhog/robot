@@ -213,9 +213,6 @@ void toggle_led() {
     }
 }
 
-static uint8_t source_addr[5] = { 0x0A, 0x0A, 0x0A, 0x0A, 0x0A };
-static uint8_t dest_addr[5] = { 0x1B, 0x1B, 0x1B, 0x1B, 0x1B };
-
 int main(void) {
 
     DEBUG_INIT();
@@ -234,9 +231,11 @@ int main(void) {
     //motor_set_right(FORWARD, 0xFF);
 
     DEBUG_PRINT("NRF24 Init...\n");
-    //nrf24_init();
+    nrf24_init();
     DEBUG_PRINT("NRF24 Init done!\n");
 
+	uint8_t source_addr[5] = { 0x0A, 0x0A, 0x0A, 0x0A, 0x0A };
+    uint8_t dest_addr[5] = { 0x1B, 0x1B, 0x1B, 0x1B, 0x1B };
     nrf24_config(7, 16);
     nrf24_set_rx_addr(source_addr);
     nrf24_set_tx_addr(dest_addr);
@@ -254,9 +253,14 @@ int main(void) {
     DEBUG_PRINT("Starting program main loop...\n");
     while (1) {
         if (nrf24_has_data()) {
-            uint8_t dummy = 0;
-            nrf24_recv(&dummy, 1);
-            DEBUG_PRINT("Got data!\n");
+            uint16_t dummy = 0;
+            nrf24_recv(&dummy, 2);
+			char pretty[64];
+			sprintf(pretty, "Got value: %d\n", dummy);
+            DEBUG_PRINT(pretty);
+			if (dummy == 0xDD) {
+				toggle_led();
+			}
         }
 
         range_check();
@@ -280,11 +284,11 @@ int main(void) {
                 stops++;
         }
 
-        if (stops >= stopThreshold) {
-            clear_bit(PORTC, 0);
-        } else {
-            set_bit(PORTC, 0);
-        }
+        //if (stops >= stopThreshold) {
+            //clear_bit(PORTC, 0);
+        //} else {
+            //set_bit(PORTC, 0);
+        //}
     }
 #if 0
         while (poll_buffer(&UartBuffer, &Command, CommandData)) {

@@ -11,8 +11,8 @@ pushd ..\build
 :BUILD
 echo Building robot...
 avr-gcc ..\src\robot.c -c %cflags% -o robot.o 
-avr-gcc ..\src\nrf24.c -c %cflags% -o nrf24.o
-avr-gcc -g -mmcu=%mmcu% -o robot.elf robot.o nrf24.o
+rem avr-gcc ..\src\nrf24.c -c %cflags% -o nrf24.o
+avr-gcc -g -mmcu=%mmcu% -o robot.elf robot.o
 avr-objdump -h -S robot.elf > robot.lst
 avr-size --mcu=%mmcu% robot.elf
 
