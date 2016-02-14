@@ -3,15 +3,6 @@
 #include <avr/io.h>
 #include <stdio.h>
 
-/**
- * Pin configuration:
- * PIND4 = SCK
- * PIND3 = MISO
- * PIND2 = MOSI
- * PINB0 = CSN
- * PINB7 = CE
- * PIND7 = IRQ
- */
 
 /* SPI Commands */
 #define R_REGISTER  0x00
@@ -89,55 +80,12 @@
 #define ENAA_P1 1
 #define ENAA_P0 0
 
-// SPI Software functions
-#define SPI_SCK_LOW() PORTD &= ~(1<<PD4)
-#define SPI_SCK_HIGH() PORTD |= (1<<PD4)
-#define SPI_MOSI_LOW() PORTD &= ~(1<<PD2)
-#define SPI_MOSI_HIGH() PORTD |= (1<<PD2)
-#define SPI_MISO_READ() (PIND & (1<<PD3))
-
 // FIFO Status register
 #define FIFO_TX_REUSE 6
 #define FIFO_TX_FULL  5
 #define FIFO_TX_EMPTY 4
 #define FIFO_RX_FULL  1
 #define FIFO_RX_EMPTY 0
-
-static void
-spi_init() {
-    DDRD |= (1<<PD4)|(1<<PD2);
-    DDRD &= ~(1<<PD3);
-}
-
-static uint8_t
-spi_transfer(uint8_t data) {
-    //char buffer[64];
-    //sprintf(buffer, "SPI Send: 0x%02x\n", data);
-    //DEBUG_PRINT(buffer);
-
-    uint8_t in = 0;
-
-    SPI_SCK_LOW();
-    for (uint8_t i = 0; i < 8; ++i) {
-        // Send MSB first
-        if (data & (1 << (7 - i))) {
-            SPI_MOSI_HIGH();
-        } else {
-            SPI_MOSI_LOW();
-        }
-
-        SPI_SCK_HIGH();
-
-        uint8_t inPin = SPI_MISO_READ();
-        if (inPin) {
-            in |= (1 << (7 - i));
-        }
-
-        SPI_SCK_LOW();
-    }
-
-    return in;
-}
 
 static void
 spi_transfer_many(uint8_t *ibuffer, uint8_t *obuffer,
@@ -154,7 +102,6 @@ spi_transfer_many(uint8_t *ibuffer, uint8_t *obuffer,
 
 static void
 nrf24_read_register_len(uint8_t addr, uint8_t *buffer, uint8_t len) {
-    DEBUG_TRACE();
     CSN_LOW();
     spi_transfer(R_REGISTER | (0x1F & addr)); 
     spi_transfer_many(buffer, buffer, len);
@@ -163,7 +110,6 @@ nrf24_read_register_len(uint8_t addr, uint8_t *buffer, uint8_t len) {
 
 static uint8_t
 nrf24_read_register(uint8_t addr) {
-    DEBUG_TRACE();
     uint8_t result = 0;
     nrf24_read_register_len(addr, &result, 1);
     return result;
@@ -171,7 +117,6 @@ nrf24_read_register(uint8_t addr) {
 
 static void
 nrf24_write_register_len(uint8_t addr, uint8_t *buffer, uint8_t len) {
-    DEBUG_TRACE();
     CSN_LOW();
     spi_transfer(W_REGISTER | (REGISTER_MASK & addr));
     spi_transfer_many(buffer, buffer, len);
@@ -179,7 +124,6 @@ nrf24_write_register_len(uint8_t addr, uint8_t *buffer, uint8_t len) {
 }
 
 void nrf24_write_register(uint8_t reg, uint8_t value) {
-    DEBUG_TRACE();
     CSN_LOW();
 
     spi_transfer(W_REGISTER | (REGISTER_MASK & reg));
@@ -189,7 +133,6 @@ void nrf24_write_register(uint8_t reg, uint8_t value) {
 }
 
 uint8_t nrf24_read_config(uint8_t reg) {
-    DEBUG_TRACE();
     CSN_LOW();
 
     spi_transfer(R_REGISTER | (REGISTER_MASK & reg));
@@ -201,7 +144,6 @@ uint8_t nrf24_read_config(uint8_t reg) {
 }
 
 void nrf24_init() {
-    DEBUG_TRACE();
     // CSN output
     DDRD |= (1<<PD7);
     // CE output
@@ -212,8 +154,6 @@ void nrf24_init() {
     // SPI Enable, Master mode, f_osc / 128
     SPCR = (1<<SPE)|(1<<MSTR)|(1<<SPR1)|(1<<SPR0);
 
-    spi_init();
-
     CE_LOW();
     CSN_HIGH();
 }
@@ -221,11 +161,10 @@ void nrf24_init() {
 static uint8_t payload_size;
 
 void nrf24_config(uint8_t channel, uint8_t size) {
-    DEBUG_TRACE();
     payload_size = size;
 
     // Wait for the radio to settle in defined state.
-    _delay_ms(5);
+    delay(5);
 
     // Enable CRC
     nrf24_write_register(CONFIG, (1 << EN_CRC) | (0 << CRCO));
@@ -268,47 +207,38 @@ void nrf24_config(uint8_t channel, uint8_t size) {
 }
 
 void nrf24_set_rx_addr(uint8_t addr[5]) {
-    DEBUG_TRACE();
     nrf24_write_register_len(RX_ADDR_P1, addr, 5);
 }
 
 void nrf24_set_tx_addr(uint8_t addr[5]) {
-    DEBUG_TRACE();
     nrf24_write_register_len(RX_ADDR_P0, addr, 5);
     nrf24_write_register_len(TX_ADDR, addr, 5);
 	nrf24_write_register(RX_PW_P0, payload_size);
 }
 
 void nrf24_power_up(void) {
-    DEBUG_TRACE();
 	
     uint8_t config = nrf24_read_register(CONFIG);
     if (!(config & (1 << PWR_UP))) {
         nrf24_write_register(CONFIG, config | _BV(PWR_UP));
 
         // Wait for transition state to complete.
-        _delay_ms(5);
+        delay(5);
     }
 }
 
 void nrf24_power_down(void) {
-    DEBUG_TRACE();
-
     CE_LOW();
     uint8_t config = nrf24_read_register(CONFIG);
     nrf24_write_register(CONFIG, config & ~_BV(PWR_UP));
 }
 
 uint8_t nrf24_rx_fifo_empty(void) {
-    DEBUG_TRACE();
-
     uint8_t fifoStatus = nrf24_read_register(FIFO_STATUS);
     return (fifoStatus & (1 << FIFO_RX_EMPTY));
 }
 
 uint8_t nrf24_has_data(void) {
-    DEBUG_TRACE();
-	
     uint8_t status = nrf24_status();
     if (status & (1 << RX_DR)) {
         return 1;
@@ -318,8 +248,6 @@ uint8_t nrf24_has_data(void) {
 }
 
 void nrf24_recv(void *buffer, uint8_t len) {
-    DEBUG_TRACE();
-
 	uint8_t *dest = (uint8_t *)buffer;
 
     CSN_LOW();
@@ -337,8 +265,6 @@ void nrf24_recv(void *buffer, uint8_t len) {
 }
 
 uint8_t nrf24_status(void) {
-    DEBUG_TRACE();
-
     CSN_LOW();
     uint8_t status = spi_transfer(NOP);
     CSN_HIGH();

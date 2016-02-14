@@ -4,12 +4,12 @@
 #include <avr/interrupt.h>
 #include <util/atomic.h>
 #include <util/delay.h>
+#include <stdio.h>
 
 #include "common.h"
 #include "robot_debug.h"
+#include "robot_nrf24.h"
 #include "nrf24.h"
-// TODO: Move out
-#include "nrf24.c"
 
 typedef struct {
     uint32_t counter;
@@ -231,6 +231,7 @@ int main(void) {
     //motor_set_right(FORWARD, 0xFF);
 
     DEBUG_PRINT("NRF24 Init...\n");
+    spi_init();
     nrf24_init();
     DEBUG_PRINT("NRF24 Init done!\n");
 
@@ -284,11 +285,11 @@ int main(void) {
                 stops++;
         }
 
-        //if (stops >= stopThreshold) {
+        if (stops >= stopThreshold) {
             //clear_bit(PORTC, 0);
-        //} else {
+        } else {
             //set_bit(PORTC, 0);
-        //}
+        }
     }
 #if 0
         while (poll_buffer(&UartBuffer, &Command, CommandData)) {
