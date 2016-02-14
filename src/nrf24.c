@@ -95,10 +95,10 @@ spi_transfer_many(uint8_t *ibuffer, uint8_t *obuffer,
     }
 }
 
-#define CSN_LOW() PORTD &= ~(1<<PD7)
-#define CSN_HIGH() PORTD |= (1<<PD7)
-#define CE_LOW() PORTB &= ~(1<<PB7)
-#define CE_HIGH() PORTB |= (1<<PB7)
+#define CSN_LOW() nrf24_set_csn(0)
+#define CSN_HIGH() nrf24_set_csn(1)
+#define CE_LOW() nrf24_set_ce(0) 
+#define CE_HIGH() nrf24_set_ce(1)
 
 static void
 nrf24_read_register_len(uint8_t addr, uint8_t *buffer, uint8_t len) {
