@@ -12,8 +12,8 @@ all: robot remote
 
 robot:
 	$(CC) robot.c -c $(CFLAGS) -o robot.o
-	#$(CC) nrf24.c -c $(CFLAGS) -o nrf24.o
-	$(CC) -g -mmcu=$(MCU) -o robot.elf robot.o #nrf24.o
+	$(CC) nrf24.c -c $(CFLAGS) -o nrf24.o
+	$(CC) -g -mmcu=$(MCU) -o robot.elf robot.o nrf24.o
 	$(OBJDUMP) -h -S robot.elf > robot.lst
 
 remote:

@@ -50,7 +50,10 @@ uint8_t spi_transfer(uint8_t data) {
 }
 
 void delay(uint8_t ms) {
-    _delay_ms(ms);
+    // TODO: Fix stupid implementation. (Demands compile time constant)
+    while (ms--) {
+        _delay_ms(1);
+    }
 }
 
 void nrf24_set_ce(uint8_t state) {
