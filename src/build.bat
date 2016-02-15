@@ -8,6 +8,13 @@ set outputDir=..\build\
 if not exist ..\build mkdir ..\build
 pushd ..\build
 
+if not "%1" == "clean" goto BUILD
+
+:CLEAN
+echo Cleaning...
+del *.o *.elf *.lst
+goto END
+
 :BUILD
 echo Building radio library...
 avr-gcc ..\src\nrf24.c -c %cflags% -o nrf24.o
@@ -24,5 +31,7 @@ avr-gcc %cflags% -o remote.o ..\src\remote.c
 avr-gcc -g -mmcu=%mmcu% -o remote.elf remote.o nrf24.o
 avr-objdump -h -S remote.elf > remote.lst
 avr-size --mcu=%mmcu% remote.elf
+
+:END
 
 popd
