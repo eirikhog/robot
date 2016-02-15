@@ -4,6 +4,8 @@ This is the firmware for a simple robot done as a hobbyist project.
 
 The code is work in progress.
 
+[![Build Status](http://eirikhog.com:8080/job/Robot/badge/icon)](http://eirikhog.com:8080/job/Robot/)
+
 ## Hardware
 
 I chose to use the ATmega328p for both part of this project due to cost and availability.
