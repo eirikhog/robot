@@ -231,13 +231,11 @@ int main(void) {
     //motor_set_right(FORWARD, 0xFF);
 
     DEBUG_PRINT("NRF24 Init...\n");
-    spi_init();
-    nrf24_init();
-    DEBUG_PRINT("NRF24 Init done!\n");
-
 	uint8_t source_addr[5] = { 0x0A, 0x0A, 0x0A, 0x0A, 0x0A };
     uint8_t dest_addr[5] = { 0x1B, 0x1B, 0x1B, 0x1B, 0x1B };
-    nrf24_config(7, 16);
+    spi_init();
+    nrf24_init();
+    nrf24_config(47, 2);
     nrf24_set_rx_addr(source_addr);
     nrf24_set_tx_addr(dest_addr);
 

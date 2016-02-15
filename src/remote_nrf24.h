@@ -22,8 +22,8 @@
 
 // Software SPI
 void spi_init() {
-    DDRD |= (1<<PD4)|(1<<PD0);
-    DDRD &= ~(1<<PD1);
+    DDRD |= _BV(PD4)|_BV(PD3)|_BV(PD2)|_BV(PD0);
+    DDRD &= ~_BV(PD1);
 }
 
 uint8_t spi_transfer(uint8_t data) {

@@ -1,6 +1,13 @@
 #include "nrf24.h"
 
+// Right now, both controllers are running on the same
+// clock frequency, so we can just define it.
+// However, we might want to delegate the delay control
+// to the calling code. See delay()
+#define F_CPU 8000000
+
 #include <avr/io.h>
+#include <util/delay.h>
 #include <stdio.h>
 
 
@@ -108,8 +115,7 @@ nrf24_read_register_len(uint8_t addr, uint8_t *buffer, uint8_t len) {
     CSN_HIGH();
 }
 
-static uint8_t
-nrf24_read_register(uint8_t addr) {
+uint8_t nrf24_read_register(uint8_t addr) {
     uint8_t result = 0;
     nrf24_read_register_len(addr, &result, 1);
     return result;
@@ -130,17 +136,6 @@ void nrf24_write_register(uint8_t reg, uint8_t value) {
     spi_transfer(value);
 
     CSN_HIGH();
-}
-
-uint8_t nrf24_read_config(uint8_t reg) {
-    CSN_LOW();
-
-    spi_transfer(R_REGISTER | (REGISTER_MASK & reg));
-    uint8_t result = spi_transfer(NOP);
-
-    CSN_HIGH();
-
-    return result;
 }
 
 void nrf24_init() {
@@ -171,7 +166,7 @@ void nrf24_config(uint8_t channel, uint8_t size) {
 
     nrf24_write_register(RF_CH, channel);
 
-    nrf24_write_register(RX_PW_P0, 0);
+    nrf24_write_register(RX_PW_P0, size & 0x1F);
     nrf24_write_register(RX_PW_P1, size & 0x1F);
 
     // Set Air Data Rate = 1mbit, RF output power 0db
@@ -211,9 +206,9 @@ void nrf24_set_rx_addr(uint8_t addr[5]) {
 }
 
 void nrf24_set_tx_addr(uint8_t addr[5]) {
-    nrf24_write_register_len(RX_ADDR_P0, addr, 5);
     nrf24_write_register_len(TX_ADDR, addr, 5);
-	nrf24_write_register(RX_PW_P0, payload_size);
+    nrf24_write_register_len(RX_ADDR_P0, addr, 5);
+//	nrf24_write_register(RX_PW_P0, payload_size);
 }
 
 void nrf24_power_up(void) {
@@ -245,6 +240,79 @@ uint8_t nrf24_has_data(void) {
     }
     uint8_t fifoEmpty = nrf24_rx_fifo_empty();
     return !fifoEmpty;
+}
+static uint8_t last = 0;
+void nrf24_send(void *buffer, uint8_t len) {
+    // Radio is normally in RX mode, change to standby
+    CE_LOW();
+
+    // Clear interrupts and TX FIFO
+    nrf24_write_register(STATUS, _BV(TX_DS) | _BV(MAX_RT) | _BV(RX_DR));
+    CSN_LOW();
+    spi_transfer(FLUSH_TX);
+    CSN_HIGH();
+
+    last = nrf24_status();
+    uint8_t *data = (uint8_t*)buffer;
+
+    // Write package to TX FIFO
+    CSN_LOW();
+    spi_transfer(W_TX_PAYLOAD);
+    while (len--) {
+        spi_transfer(*data++);
+    }
+    CSN_HIGH();
+
+    uint8_t config = nrf24_read_register(CONFIG);
+    nrf24_write_register(CONFIG, config & ~_BV(PRIM_RX));
+
+    // Pulse CE for at least 10 us
+    CE_HIGH();
+    _delay_us(10);
+    CE_LOW();
+
+    // According to the datasheet, the controller should
+    // return to standby-i mode after the package is sent.
+    // TODO: Can we skip waiting for package to be sent
+    // before chaning to RX mode?
+   
+    while (nrf24_is_sending()) {
+        // wait
+    }
+
+    // Return to RX mode.
+    config = nrf24_read_register(CONFIG);
+    nrf24_write_register(CONFIG, config | _BV(PRIM_RX));
+    CE_HIGH();
+}
+
+uint8_t nrf24_is_sending(void) {
+    uint8_t status = nrf24_status();
+    if (status & (_BV(TX_DS) | _BV(MAX_RT))) {
+        return 0;
+    }
+
+    return 1;
+}
+
+uint8_t nrf24_last(void) {
+    //uint8_t status = nrf24_status();
+    return last;//status;
+}
+
+uint8_t nrf24_read_config(void) {
+    uint8_t config = nrf24_read_register(CONFIG);
+    return config;
+}
+
+uint8_t nrf24_retransmissions(void) {
+    uint8_t result = nrf24_read_register(OBSERVE_TX);
+    return result & 0x0F;
+}
+
+uint8_t nrf24_lost_packets(void) {
+    uint8_t result = nrf24_read_register(OBSERVE_TX);
+    return result >> 4;
 }
 
 void nrf24_recv(void *buffer, uint8_t len) {

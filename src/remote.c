@@ -10,6 +10,7 @@
 #include "remote_terminal.h"
 #include "remote_menu.h"
 #include "remote_nrf24.h"
+#include "nrf24.h"
 
 // Global program state, accessible from ISR
 static volatile InputState input_state; 
@@ -57,6 +58,12 @@ typedef enum {
     MODE_MENU
 } RemoteMode;
 
+void debug_print_byte(char *prefix, uint8_t byte) {
+    char buff[64];
+    sprintf(buff, "%s: 0x%02x\n", prefix, byte);
+    printf(buff);
+}
+
 int main(void) {
     // LCD Screen
     lcd_init();
@@ -68,6 +75,15 @@ int main(void) {
     // Set power LED
     DDRB |= (1 << PINB6);
     clear_bit(PORTB, PINB6);
+    
+    // Radio
+    uint8_t local_addr[] = { 0x1B, 0x1B, 0x1B, 0x1B, 0x1B };
+    uint8_t robot_addr[] = { 0x0A, 0x0A, 0x0A, 0x0A, 0x0A };
+    spi_init();
+    nrf24_init();
+    nrf24_config(47, 2); // Channel 7, 2 bytes
+    nrf24_set_rx_addr(local_addr);
+    nrf24_set_tx_addr(robot_addr);
 
     // Ready to go!
     sei();
@@ -77,6 +93,22 @@ int main(void) {
     while (1) 
     {
         input_update(&input_state);
+
+        if (!(input_state.buttons & BUTTON_LEFT)) {
+            // Send some data
+            printf("Sending data.\n");
+            uint16_t data = 0xDD;
+            nrf24_send(&data, sizeof(data));
+            int i = 10;
+            while (nrf24_is_sending() && --i) {
+                printf("Waiting...\n");
+            }
+            debug_print_byte("R", nrf24_retransmissions());
+            debug_print_byte("L", nrf24_last());
+            debug_print_byte("C", nrf24_read_register(0x0A));
+            debug_print_byte("S", nrf24_status());
+            printf("Done!\n");
+        }
 
         switch (mode) {
             case MODE_MANUAL:
