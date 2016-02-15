@@ -157,7 +157,7 @@ void stop_motors() {
     _delay_ms(500);
 }
 
-void motor_set_right(Direction d, uint8_t speed) {
+void motor_set_left(Direction d, uint8_t speed) {
     switch (d) {
         case BACKWARD:{
             OCR0A = speed;
@@ -170,7 +170,7 @@ void motor_set_right(Direction d, uint8_t speed) {
     }
 }
 
-void motor_set_left(Direction d, uint16_t speed) {
+void motor_set_right(Direction d, uint16_t speed) {
     switch (d) {
         case BACKWARD:{
             OCR1A = 0;
@@ -287,25 +287,32 @@ int main(void) {
         if (nrf24_has_data()) {
             RemoteCommand newCommand;
             nrf24_recv(&newCommand, sizeof(RemoteCommand));
-            DEBUG_PRINT("RECV CMD");
 
             switch (newCommand.cmd) {
                 case RADIO_CMD_LIGHT_ON:{
+                    DEBUG_PRINT("RECV CMD: RADIO_CMD_LIGHT_ON\n");
                     set_bit(PORTC, 0);
                 } break;
                 case RADIO_CMD_LIGHT_OFF:{
+                    DEBUG_PRINT("RECV CMD: RADIO_CMD_LIGHT_OFF\n");
                     clear_bit(PORTC, 0);
                 } break;
                 case RADIO_CMD_STOP:{
+                    DEBUG_PRINT("RECV CMD: RADIO_CMD_STOP\n");
                     stop_motors();
                 } break;
                 case RADIO_CMD_SET_MOTOR:{
+                    DEBUG_PRINT("RECV CMD: RADIO_CMD_SET_MOTOR\n");
+                    char debug_buffer[64];
+                    sprintf(debug_buffer, "%d %d %d %d\n", newCommand.data[0], newCommand.data[1],
+                            newCommand.data[2], newCommand.data[3]);
+                    DEBUG_PRINT(debug_buffer);
                     Direction left_dir = newCommand.data[0];
                     uint8_t left_speed = newCommand.data[1];
                     Direction right_dir = newCommand.data[2];
                     uint8_t right_speed = newCommand.data[3];
 
-                    if (!blocked || (left_dir == FORAWRD && right_dir == FORWARD)) {
+                    if (!blocked || (left_dir == FORWARD && right_dir == FORWARD)) {
                         motor_set_left(left_dir, left_speed);
                         motor_set_right(right_dir, right_speed);
                     }
