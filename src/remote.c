@@ -9,6 +9,7 @@
 #include "remote_lcd.h"
 #include "remote_terminal.h"
 #include "remote_menu.h"
+#include "remote_nrf24.h"
 
 // Global program state, accessible from ISR
 static volatile InputState input_state; 
@@ -35,12 +36,19 @@ static volatile InputState input_state;
  * PC0: Joystick (analog)
  * PC1: Joystick (analog)
  * PC2: Joystick (button)
- * PB5-3: SPI (ISP connection, Display)
  * LCD:
  * PB1: SCE (Chip select)
  * PB2: RST (Reset)
  * PB7: D/C (Mode select)
  * PB5-3: SPI
+ *
+ * Radio: (Software SPI)
+ * PD0: MOSI
+ * PD1: MISO
+ * PD2: CE
+ * PD3: CSN
+ * PD4: SCK
+ *
  */
 
 typedef enum {
@@ -50,9 +58,6 @@ typedef enum {
 } RemoteMode;
 
 int main(void) {
-    // UART for radio.
-    init_uart(19200, F_CPU);
-
     // LCD Screen
     lcd_init();
     terminal_init();

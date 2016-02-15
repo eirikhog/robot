@@ -117,14 +117,14 @@ static const byte ASCII[][5] = {
 static byte Display[LCD_WIDTH * LCD_HEIGHT / 8];
 
 //TODO: Move SPI code to common file
-void spi_init() {
+void lcd_spi_init() {
     // Set MISO and SCK pin as output (and disable spi input)
     DDRB |= (1 << PINB4) | (1 << PINB5) | (1 << PINB3) | (1 << PINB2);
     // TODO: Check timing!
     SPCR = (1 << SPE) | (0 << DORD) | (1 << MSTR) | (0 << SPR1) | (1 << SPR0);
 }
 
-void spi_send(byte data) {
+void lcd_spi_send(byte data) {
     SPDR = data;
     // Wait for transmission
     while (!(SPSR & (1 << SPIF)));
@@ -144,7 +144,7 @@ lcd_write(LcdTransferType type, byte data) {
         set_bit(PORTB, LCD_PIN_MODE);
     }
     clear_bit(PORTB, LCD_PIN_SCE);
-    spi_send(data);
+    lcd_spi_send(data);
     set_bit(PORTB, LCD_PIN_SCE);
 }
 
@@ -222,7 +222,7 @@ void lcd_puts(char *str, uint8_t x, uint8_t y) {
 }
 
 void lcd_init() {
-    spi_init();
+    lcd_spi_init();
     DDRB |= (1 << LCD_PIN_MODE) | (1 << LCD_PIN_RESET) | (1 << LCD_PIN_SCE);
     lcd_reset();
 
