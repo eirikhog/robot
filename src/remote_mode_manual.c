@@ -10,8 +10,6 @@ typedef struct {
 static ControlState manual_prev;
 
 void UpdateManualMode(volatile InputState *input) {
-
-    // TODO:
     // Get joystick X/Y
     // NB: Joystick is rotated on board!
     uint16_t x = input->joystick.x;
@@ -19,19 +17,19 @@ void UpdateManualMode(volatile InputState *input) {
     // Determine direction to go
     // Set motor values.
     // NB: Make sure not to override the motors!
-    
+
     const uint16_t deadzone = 20;
-    
+
     // How to determine direction and speed:
     // X axis determines direction
     //   --> Rotate control vector
     // Y axis determines speed
-    
+
     int32_t vec_x = ((int32_t)x - 0x3FF/2);
     int32_t vec_y = ((int32_t)y - 0x3FF/2);
 
     vec_y *= -1;
-    
+
     int16_t motor_left = 0;
     int16_t motor_right = 0;
 
@@ -66,7 +64,7 @@ void UpdateManualMode(volatile InputState *input) {
 
     motor_left += motor_left_f;
     motor_right += motor_right_f;
-    
+
     if (motor_left > 0xFF) {
         motor_left = 0xFF;
     } else if  (motor_left < -0xFF) {
@@ -81,18 +79,19 @@ void UpdateManualMode(volatile InputState *input) {
 
     if (manual_prev.initialized && (manual_prev.motor_left != motor_left || manual_prev.motor_right != motor_right)) {
         // Send updated signal
+        RemoteCommand toSend;
         if (motor_left == 0 && motor_right == 0) {
-            radio_send(RADIO_CMD_STOP, 0);
+            toSend.cmd = RADIO_CMD_STOP;
             printf("R: STOP\n");
         } else {
-            uint8_t data[4];
-            data[0] = motor_left >= 0 ? FORWARD : BACKWARD;
-            data[1] = (uint8_t)abs(motor_left);
-            data[2] = motor_right >= 0 ? FORWARD : BACKWARD;
-            data[3] = (uint8_t)abs(motor_right);
+            toSend.cmd = RADIO_CMD_SET_MOTOR;
+            toSend.data[0] = motor_left >= 0 ? FORWARD : BACKWARD;
+            toSend.data[1] = (uint8_t)abs(motor_left);
+            toSend.data[2] = motor_right >= 0 ? FORWARD : BACKWARD;
+            toSend.data[3] = (uint8_t)abs(motor_right);
 
             printf("D: %d, %d\n", motor_left, motor_right);
-            radio_send(RADIO_CMD_SET_MOTOR, data);
+            nrf24_send(&toSend, sizeof(RemoteCommand));
 #if 0
             if (motor_left > 0) {
                 radio_send(RADIO_CMD_MOTOR_LEFT_FORWARD, (uint8_t)motor_left);
@@ -112,6 +111,21 @@ void UpdateManualMode(volatile InputState *input) {
             }
 #endif
         }
+
+    }
+
+    // Handle light switch cmd
+    if (!(input->buttons & BUTTON_LEFT)) {
+        printf("LIGHT ON\n");
+        RemoteCommand c;
+        c.cmd = RADIO_CMD_LIGHT_ON;
+        nrf24_send(&c, sizeof(RemoteCommand));
+    }
+    if (!(input->buttons & BUTTON_RIGHT)) {
+        printf("LIGHT OFF\n");
+        RemoteCommand c;
+        c.cmd = RADIO_CMD_LIGHT_OFF;
+        nrf24_send(&c, sizeof(RemoteCommand));
     }
 
     manual_prev.initialized = 1;

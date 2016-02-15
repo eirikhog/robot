@@ -235,7 +235,7 @@ int main(void) {
     uint8_t dest_addr[5] = { 0x1B, 0x1B, 0x1B, 0x1B, 0x1B };
     spi_init();
     nrf24_init();
-    nrf24_config(47, 2);
+    nrf24_config(47, sizeof(RemoteCommand));
     nrf24_set_rx_addr(source_addr);
     nrf24_set_tx_addr(dest_addr);
 
@@ -251,16 +251,6 @@ int main(void) {
 
     DEBUG_PRINT("Starting program main loop...\n");
     while (1) {
-        if (nrf24_has_data()) {
-            uint16_t dummy = 0;
-            nrf24_recv(&dummy, 2);
-			char pretty[64];
-			sprintf(pretty, "Got value: %d\n", dummy);
-            DEBUG_PRINT(pretty);
-			if (dummy == 0xDD) {
-				toggle_led();
-			}
-        }
 
         range_check();
         uint8_t waitTime = 0;
@@ -283,16 +273,23 @@ int main(void) {
                 stops++;
         }
 
+        uint8_t blocked = 0;
         if (stops >= stopThreshold) {
             //clear_bit(PORTC, 0);
+            blocked = 1;
+            stop_motors();
         } else {
             //set_bit(PORTC, 0);
+            blocked = 0;
         }
-    }
-#if 0
-        while (poll_buffer(&UartBuffer, &Command, CommandData)) {
-            set_bit(PORTC, 0);
-            switch (Command) {
+
+
+        if (nrf24_has_data()) {
+            RemoteCommand newCommand;
+            nrf24_recv(&newCommand, sizeof(RemoteCommand));
+            DEBUG_PRINT("RECV CMD");
+
+            switch (newCommand.cmd) {
                 case RADIO_CMD_LIGHT_ON:{
                     set_bit(PORTC, 0);
                 } break;
@@ -303,34 +300,22 @@ int main(void) {
                     stop_motors();
                 } break;
                 case RADIO_CMD_SET_MOTOR:{
-                    Direction left_dir = CommandData[0];
-                    uint8_t left_speed = CommandData[1];
-                    Direction right_dir = CommandData[2];
-                    uint8_t right_speed = CommandData[3];
+                    Direction left_dir = newCommand.data[0];
+                    uint8_t left_speed = newCommand.data[1];
+                    Direction right_dir = newCommand.data[2];
+                    uint8_t right_speed = newCommand.data[3];
 
-                    motor_set_left(left_dir, left_speed);
-                    motor_set_right(right_dir, right_speed);
-                } break;
-                case RADIO_CMD_MOTOR_LEFT_FORWARD:{
-                    motor_set_left(FORWARD, data);
-                } break;
-                case RADIO_CMD_MOTOR_LEFT_BACKWARD:{
-                    motor_set_left(BACKWARD, data);
-                } break;
-                case RADIO_CMD_MOTOR_RIGHT_FORWARD:{
-                    motor_set_right(FORWARD, data);
-                } break;
-                case RADIO_CMD_MOTOR_RIGHT_BACKWARD:{
-                    motor_set_right(BACKWARD, data);
+                    if (!blocked || (left_dir == FORAWRD && right_dir == FORWARD)) {
+                        motor_set_left(left_dir, left_speed);
+                        motor_set_right(right_dir, right_speed);
+                    }
                 } break;
                 default:{
                     asm("nop"::);
                 }
             }
-            HasCommand = 0;
         }
     }
-#endif
 }
 
 
