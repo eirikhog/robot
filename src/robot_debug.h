@@ -1,15 +1,20 @@
 #ifndef _ROBOT_DEBUG_H
 #define _ROBOT_DEBUG_H
 
+#ifdef DEBUG
 #define DEBUG_INIT() robot_debug_init()
 #define DEBUG_PRINT(x) robot_debug_send(x)
-
-#if 0
 #define DEBUG_TRACE() robot_debug_send_line(__FUNCTION__)
 #else
+
+#define DEBUG_INIT()
+#define DEBUG_PRINT(x)
 #define DEBUG_TRACE()
 #endif
 
+// Don't bother compiling debug code if we're not
+// making a debug build.
+#ifdef DEBUG
 void robot_debug_init() {
 	// Debug output set to UART
 
@@ -42,5 +47,6 @@ void robot_debug_send_line(const char *str) {
 	robot_debug_send(str);
     robot_debug_send_byte('\n');
 }
+#endif
 
 #endif

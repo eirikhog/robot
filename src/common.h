@@ -10,10 +10,6 @@ typedef uint8_t bool;
 #define clear_bit(reg, n) ((reg) &= ~(1 << (n)))
 #define bit_set(reg, n) ((reg) & (1 << (n)))
 
-// Note: Not safe in edge cases
-// #define abs(x) ((x > 0) ? x : -x)
-#define max(x,y) ((x < y) ? y : x)
-
 typedef enum {
     FORWARD,
     BACKWARD
@@ -27,11 +23,6 @@ typedef enum {
     RADIO_CMD_SET_MOTOR,
     RADIO_CMD_COUNT
 } RadioCommand;
-
-typedef enum {
-    RADIO_NACK = 0,
-    RADIO_ACK = 1
-} RadioProtocol;
 
 typedef struct {
     RadioCommand cmd;

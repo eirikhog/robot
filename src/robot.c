@@ -1,4 +1,5 @@
 #define F_CPU 8000000
+#define DEBUG
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -11,111 +12,28 @@
 #include "robot_nrf24.h"
 #include "nrf24.h"
 
-typedef struct {
-    uint32_t counter;
-    bool working;
-} Range;
-
 typedef enum {
     MOTOR_LEFT,
     MOTOR_RIGHT
 } Motor;
 
+typedef struct {
+    uint32_t counter;
+    bool working;
+} Range;
+
 static Range range_state;
 
-void toggle_led(void);
-
-// TODO: Move to buffer, or better struct.
-static volatile bool HasCommand;
-static volatile RadioCommand Command;
-static volatile uint8_t CommandData[4];
-
-#define UART_BUFFER_COUNT 64 
-static uint8_t UartRecvBuffer[UART_BUFFER_COUNT];
-
-typedef struct {
-    uint8_t *data;
-    uint16_t start;
-    uint16_t capacity;
-    uint8_t count;
-} CircleBuffer;
-
-static volatile CircleBuffer UartBuffer;
-
-inline bool buffer_empty(volatile CircleBuffer *buffer) {
-    return buffer->count == 0;
-}
-
-inline bool buffer_full(volatile CircleBuffer *buffer) {
-    return buffer->count == buffer->capacity;
-}
-
-inline uint8_t buffer_read(volatile CircleBuffer *buffer) {
-    uint8_t data = *(buffer->data + buffer->start);
-    uint16_t newStart = buffer->start + 1;
-    if (newStart == buffer->capacity) {
-        buffer->start = 0;
-    } else {
-        buffer->start = newStart;
-    }
-
-    buffer->count--;
-    return data;
-}
-
-// TODO: Make safe for concurrent usage.
-// Currently fine, only used from ISR
-inline void buffer_write(volatile CircleBuffer *buffer, uint8_t data) {
-    if (!buffer_full(buffer)) {
-        uint16_t head = (buffer->start + buffer->count) % buffer->capacity;
-        *(buffer->data + head) = data;
-        buffer->count++;
-    }
-}
-
-ISR(USART_RX_vect) {
-    // TODO: Buffering
-    clear_bit(PORTC, 0);
-    uint8_t packed = UDR0;
-    buffer_write(&UartBuffer, packed);
-}
-        
-bool poll_buffer(volatile CircleBuffer *buffer, volatile RadioCommand *cmd, volatile uint8_t *data) {
-    // Read buffer and try to assemble a command.
-    if (HasCommand) {
-        // A command is already loaded, but not processed.
-        return 1;
-    }
-
-    if (buffer->count >= 5) {
-        uint8_t cmd_int = buffer_read(buffer);
-        if (cmd_int > RADIO_CMD_COUNT || cmd_int == RADIO_CMD_RESERVED) {
-            // Invalid command, we are probably at the wrong frame...
-            // Ignore it, and try again next time. TODO: Try again now!
-            return 0;
-        }
-
-        HasCommand = 1;
-        *cmd = (RadioCommand)cmd_int;
-        for (int i = 0; i < 4; ++i) {
-            data[i] = buffer_read(buffer);
-        }
-        return 1;
-    }
-
-    return 0;
-} 
-
+// Interrupt for the range sensor response.
 ISR(PCINT1_vect) {
-    //toggle_led();
-    bool rangeOn = PINC & (1 << PINC2);
+    bool rangeOn = PINC & _BV(PINC2);
     if (rangeOn && !range_state.working) {
        // Start timer...
        range_state.counter = 0;
        TCNT2 = 0;
        TCCR2A = 0;
-       TCCR2B = (1 << CS20);
-       TIMSK2 = (1 << TOIE2);
+       TCCR2B = _BV(CS20);
+       TIMSK2 = _BV(TOIE2);
        range_state.working = 1;
     } // Else: Ignore this interrupt
 
@@ -127,9 +45,9 @@ ISR(PCINT1_vect) {
     }
 }
 
+// Interrupt for range counter overflow.
 ISR(TIMER2_OVF_vect) {
     range_state.counter += 255;
-    //toggle_led(); 
 }
 
 void init_motor() {
@@ -154,7 +72,8 @@ void stop_motors() {
     OCR1A = 0;
     OCR1B = 0;
     
-    _delay_ms(500);
+    // Wait for the motors to settle before returning
+    _delay_ms(30);
 }
 
 void motor_set_left(Direction d, uint8_t speed) {
@@ -214,23 +133,15 @@ void toggle_led() {
 }
 
 int main(void) {
-
     DEBUG_INIT();
 
     // Initialize LED
     set_bit(DDRC, 0);
     set_bit(PORTC, 0);
-    UartBuffer.data = UartRecvBuffer;
-    UartBuffer.start = 0;
-    UartBuffer.capacity = UART_BUFFER_COUNT;
-
+    
     init_motor();
     _delay_ms(100);
 
-    //motor_set_left(FORWARD, 0xFF);
-    //motor_set_right(FORWARD, 0xFF);
-
-    DEBUG_PRINT("NRF24 Init...\n");
 	uint8_t source_addr[5] = { 0x0A, 0x0A, 0x0A, 0x0A, 0x0A };
     uint8_t dest_addr[5] = { 0x1B, 0x1B, 0x1B, 0x1B, 0x1B };
     spi_init();
@@ -239,11 +150,11 @@ int main(void) {
     nrf24_set_rx_addr(source_addr);
     nrf24_set_tx_addr(dest_addr);
 
-    DEBUG_PRINT("Init range...\n");
     init_range();
-    sei();
-    HasCommand = 0;
 
+    sei();
+
+    // Variables for tracking free range.
     #define STOP_SAMPLES 8
     const uint8_t stopThreshold = STOP_SAMPLES / 4;
     bool stopSamples[STOP_SAMPLES];
@@ -312,7 +223,8 @@ int main(void) {
                     Direction right_dir = newCommand.data[2];
                     uint8_t right_speed = newCommand.data[3];
 
-                    if (!blocked || (left_dir == FORWARD && right_dir == FORWARD)) {
+                    // Only allow backing up if we're blocked.
+                    if (!blocked || (left_dir == BACKWARD && right_dir == BACKWARD)) {
                         motor_set_left(left_dir, left_speed);
                         motor_set_right(right_dir, right_speed);
                     }
