@@ -94,6 +94,8 @@
 #define FIFO_RX_FULL  1
 #define FIFO_RX_EMPTY 0
 
+static uint8_t nrf24_status();
+
 static void
 spi_transfer_many(uint8_t *ibuffer, uint8_t *obuffer,
                   uint8_t len) {
@@ -339,3 +341,4 @@ uint8_t nrf24_status(void) {
 
     return status;
 }
+
